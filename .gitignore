@@ -1,0 +1,45 @@
+# Dependencies
+node_modules/
+
+# Build outputs
+.next/
+dist/
+build/
+coverage/
+*.tsbuildinfo
+
+# Turbo
+.turbo/
+
+# Logs
+*.log
+
+# Environment (secrets)
+.env
+.env.local
+.env.*.local
+
+# IDEs
+.vscode/
+.idea/
+
+# Local data
+data/
+storage/
+
+# Prisma
+apps/api/prisma/migrations/dev.db*
+
+# Vercel
+.vercel/
+
+# Docker
+.docker-compose.override.yml
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Certs
+*.pem
+*.key

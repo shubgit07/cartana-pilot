@@ -1,0 +1,43 @@
+{
+  "name": "cartana",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Cartana - AI-powered project specification copilot",
+  "workspaces": [
+    "apps/*",
+    "packages/*"
+  ],
+  "scripts": {
+    "dev:api": "npm run start:dev --workspace=@cartana/api",
+    "dev:web": "npm run dev --workspace=@cartana/web",
+    "build:api": "npm run build --workspace=@cartana/api",
+    "build:web": "npm run build --workspace=@cartana/web",
+    "build:shared": "npm run build --workspace=@cartana/shared",
+    "build": "npm run build:shared && npm run build:api && npm run build:web",
+    "lint": "npm run lint --workspaces --if-present",
+    "test": "npm run test --workspaces --if-present",
+    "db:generate": "npm run prisma:generate --workspace=@cartana/api",
+    "db:migrate": "npm run prisma:migrate --workspace=@cartana/api",
+    "db:seed": "npm run prisma:seed --workspace=@cartana/api",
+    "db:studio": "npm run prisma:studio --workspace=@cartana/api",
+    "infra:up": "docker compose up -d",
+    "infra:down": "docker compose down",
+    "infra:logs": "docker compose logs -f"
+  },
+  "overrides": {
+    "next": {
+      "postcss": "^8.5.10"
+    }
+  },
+  "engines": {
+    "node": ">=20.9.0"
+  },
+  "devDependencies": {
+    "@types/node": "^20.14.10",
+    "prisma": "^7.8.0",
+    "typescript": "^5.5.4"
+  },
+  "dependencies": {
+    "@prisma/client": "^7.8.0"
+  }
+}
