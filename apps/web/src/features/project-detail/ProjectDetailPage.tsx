@@ -64,6 +64,7 @@ export function ProjectDetailPage({
               requirements: panels.requirements,
               tasks: panels.tasks,
               chat: panels.chat,
+              audit: panels.audit,
             }}
           />
           <p className="text-xs text-muted-foreground">
