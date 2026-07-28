@@ -1,7 +1,6 @@
 "use client";
 
-import { Loader2, ShieldCheck, Play } from "lucide-react";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Loader2, Play, ShieldCheck } from "lucide-react";
 import { Button } from "@/components/ui/button";
 
 type Props = {
@@ -12,44 +11,36 @@ type Props = {
 
 export function AuditHeader({ running, hasResults, onRun }: Props) {
   return (
-    <Card>
-      <CardHeader className="flex flex-row items-center justify-between">
-        <div className="space-y-1">
-          <CardTitle className="flex items-center gap-2">
-            <ShieldCheck className="h-4 w-4" aria-hidden="true" />
-            Coverage Audit
-          </CardTitle>
-          <CardDescription>
-            Audit which requirements are covered by tasks and surface risks before delivery.
-          </CardDescription>
-        </div>
-        <Button
-          size="sm"
-          onClick={onRun}
-          disabled={running}
-          aria-label={running ? "Audit running…" : "Run coverage audit"}
+    <header className="flex flex-wrap items-start justify-between gap-4">
+      <div className="flex min-w-0 items-start gap-3">
+        <span
+          aria-hidden="true"
+          className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg border border-primary/20 bg-primary-soft text-primary shadow-soft"
         >
-          {running ? (
-            <>
-              <Loader2 className="h-3.5 w-3.5 animate-spin" aria-hidden="true" />
-              <span className="ml-1.5">Auditing…</span>
-            </>
-          ) : (
-            <>
-              <Play className="h-3.5 w-3.5" aria-hidden="true" />
-              <span className="ml-1.5">{hasResults ? "Re-run audit" : "Run audit"}</span>
-            </>
-          )}
-        </Button>
-      </CardHeader>
-      {running && (
-        <CardContent>
-          <div className="flex items-center gap-2 text-sm text-muted-foreground" aria-live="polite">
-            <Loader2 className="h-3.5 w-3.5 animate-spin" aria-hidden="true" />
-            Analyzing requirement coverage and generating findings…
-          </div>
-        </CardContent>
-      )}
-    </Card>
+          <ShieldCheck className="h-5 w-5" />
+        </span>
+
+        <div className="min-w-0 space-y-1">
+          <h2 className="text-xl font-semibold leading-tight tracking-tight">Audit</h2>
+          <p className="text-sm leading-relaxed text-muted-foreground">
+            Check requirement coverage and surface gaps across tasks.
+          </p>
+        </div>
+      </div>
+
+      <Button onClick={onRun} disabled={running} className="shrink-0">
+        {running ? (
+          <>
+            <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />
+            Running…
+          </>
+        ) : (
+          <>
+            <Play className="h-4 w-4" aria-hidden="true" />
+            {hasResults ? "Re-run audit" : "Run audit"}
+          </>
+        )}
+      </Button>
+    </header>
   );
 }
