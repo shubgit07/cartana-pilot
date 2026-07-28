@@ -3,45 +3,147 @@
 @tailwind utilities;
 
 @layer base {
+  /*
+   * Light theme — Claude-inspired.
+   * Warm off-white canvas, sand/clay accents, gentle borders, soft shadows.
+   */
   :root {
-    --background: 0 0% 100%;
-    --foreground: 222 47% 11%;
+    /* Canvas & surfaces */
+    --background: 40 23% 97%;
+    --foreground: 40 6% 16%;
+
+    --surface: 0 0% 100%;
+    --surface-foreground: 40 6% 16%;
+    --surface-hover: 40 20% 96%;
+    --surface-sunken: 40 18% 94%;
+
+    --sidebar: 40 20% 95%;
+    --sidebar-foreground: 40 6% 26%;
+    --sidebar-hover: 40 22% 92%;
+
     --card: 0 0% 100%;
-    --card-foreground: 222 47% 11%;
+    --card-foreground: 40 6% 16%;
     --popover: 0 0% 100%;
-    --popover-foreground: 222 47% 11%;
-    --muted: 210 40% 96%;
-    --muted-foreground: 215 16% 47%;
-    --border: 214 32% 91%;
-    --input: 214 32% 91%;
-    --primary: 222 47% 11%;
-    --primary-foreground: 210 40% 98%;
-    --accent: 210 40% 96%;
-    --accent-foreground: 222 47% 11%;
-    --destructive: 0 84% 60%;
-    --destructive-foreground: 210 40% 98%;
-    --ring: 222 47% 11%;
-    --radius: 0.5rem;
+    --popover-foreground: 40 6% 16%;
+
+    --muted: 40 18% 93%;
+    --muted-foreground: 40 5% 42%;
+
+    --border: 40 18% 87%;
+    --border-strong: 40 14% 79%;
+    --input: 40 18% 87%;
+
+    /* Brand — Claude clay / terracotta */
+    --primary: 15 55% 52%;
+    --primary-foreground: 40 30% 98%;
+    --primary-soft: 18 55% 94%;
+    --primary-soft-foreground: 15 48% 34%;
+
+    --accent: 38 30% 92%;
+    --accent-foreground: 30 12% 24%;
+
+    /* Semantic — soft, muted, pastel */
+    --success: 152 34% 36%;
+    --success-foreground: 150 30% 98%;
+    --success-soft: 150 34% 92%;
+    --success-soft-foreground: 154 40% 24%;
+
+    --warning: 32 62% 45%;
+    --warning-foreground: 40 30% 98%;
+    --warning-soft: 40 62% 92%;
+    --warning-soft-foreground: 28 55% 28%;
+
+    --info: 212 40% 47%;
+    --info-foreground: 210 30% 98%;
+    --info-soft: 208 46% 93%;
+    --info-soft-foreground: 214 42% 30%;
+
+    --danger: 4 58% 50%;
+    --danger-foreground: 10 30% 98%;
+    --danger-soft: 8 62% 94%;
+    --danger-soft-foreground: 4 50% 34%;
+
+    --destructive: 4 58% 50%;
+    --destructive-foreground: 10 30% 98%;
+
+    --ring: 15 50% 54%;
+
+    /* Shape & depth */
+    --radius: 0.625rem;
+    --shadow-color: 30 12% 20%;
+    --shadow-soft: 0 1px 2px hsl(var(--shadow-color) / 0.05);
+    --shadow-card: 0 1px 2px hsl(var(--shadow-color) / 0.04), 0 1px 3px hsl(var(--shadow-color) / 0.05);
+    --shadow-raised: 0 2px 4px hsl(var(--shadow-color) / 0.05), 0 4px 12px hsl(var(--shadow-color) / 0.07);
+    --shadow-overlay: 0 8px 20px hsl(var(--shadow-color) / 0.1), 0 24px 48px hsl(var(--shadow-color) / 0.12);
   }
 
+  /*
+   * Dark theme — Notion-inspired.
+   * Near-black canvas, warm gray borders, minimal elevation, editorial calm.
+   */
   .dark {
-    --background: 222 47% 6%;
-    --foreground: 210 40% 98%;
-    --card: 222 47% 8%;
-    --card-foreground: 210 40% 98%;
-    --popover: 222 47% 8%;
-    --popover-foreground: 210 40% 98%;
-    --muted: 217 33% 14%;
-    --muted-foreground: 215 20% 65%;
-    --border: 217 33% 18%;
-    --input: 217 33% 18%;
-    --primary: 210 40% 98%;
-    --primary-foreground: 222 47% 11%;
-    --accent: 217 33% 14%;
-    --accent-foreground: 210 40% 98%;
-    --destructive: 0 63% 45%;
-    --destructive-foreground: 210 40% 98%;
-    --ring: 217 33% 60%;
+    --background: 0 0% 10%;
+    --foreground: 40 8% 91%;
+
+    --surface: 0 0% 13%;
+    --surface-foreground: 40 8% 91%;
+    --surface-hover: 30 3% 16%;
+    --surface-sunken: 0 0% 8%;
+
+    --sidebar: 0 0% 9%;
+    --sidebar-foreground: 35 5% 72%;
+    --sidebar-hover: 30 3% 15%;
+
+    --card: 0 0% 13%;
+    --card-foreground: 40 8% 91%;
+    --popover: 0 0% 14%;
+    --popover-foreground: 40 8% 91%;
+
+    --muted: 30 3% 16%;
+    --muted-foreground: 35 4% 60%;
+
+    --border: 30 4% 20%;
+    --border-strong: 30 4% 27%;
+    --input: 30 4% 22%;
+
+    --primary: 16 48% 58%;
+    --primary-foreground: 20 25% 10%;
+    --primary-soft: 16 24% 20%;
+    --primary-soft-foreground: 18 48% 76%;
+
+    --accent: 30 4% 18%;
+    --accent-foreground: 40 8% 91%;
+
+    --success: 152 30% 45%;
+    --success-foreground: 150 25% 10%;
+    --success-soft: 152 20% 17%;
+    --success-soft-foreground: 150 34% 70%;
+
+    --warning: 34 50% 52%;
+    --warning-foreground: 30 25% 10%;
+    --warning-soft: 34 24% 18%;
+    --warning-soft-foreground: 38 48% 72%;
+
+    --info: 210 38% 56%;
+    --info-foreground: 210 25% 10%;
+    --info-soft: 210 22% 19%;
+    --info-soft-foreground: 208 40% 74%;
+
+    --danger: 4 50% 55%;
+    --danger-foreground: 5 25% 10%;
+    --danger-soft: 4 24% 20%;
+    --danger-soft-foreground: 6 48% 74%;
+
+    --destructive: 4 50% 52%;
+    --destructive-foreground: 5 25% 96%;
+
+    --ring: 16 42% 58%;
+
+    --shadow-color: 0 0% 0%;
+    --shadow-soft: 0 1px 2px hsl(var(--shadow-color) / 0.3);
+    --shadow-card: 0 1px 2px hsl(var(--shadow-color) / 0.25);
+    --shadow-raised: 0 2px 6px hsl(var(--shadow-color) / 0.35);
+    --shadow-overlay: 0 12px 32px hsl(var(--shadow-color) / 0.5);
   }
 
   html,
@@ -51,6 +153,7 @@
 
   html {
     color-scheme: light;
+    -webkit-tap-highlight-color: transparent;
   }
 
   html.dark {
@@ -59,19 +162,61 @@
 
   body {
     @apply bg-background text-foreground antialiased;
-    font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue",
-      Arial, sans-serif;
+    font-family: var(--font-sans), ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto,
+      "Helvetica Neue", Arial, sans-serif;
+    font-feature-settings: "cv11", "ss01";
+    font-variation-settings: normal;
+    text-rendering: optimizeLegibility;
+  }
+
+  /* Type scale — clear hierarchy, editorial rhythm */
+  h1,
+  h2,
+  h3,
+  h4,
+  h5,
+  h6 {
+    @apply font-semibold text-foreground;
+    text-wrap: balance;
+    letter-spacing: -0.014em;
+  }
+
+  h1 {
+    @apply text-2xl leading-tight sm:text-[1.75rem];
+    letter-spacing: -0.021em;
+  }
+
+  h2 {
+    @apply text-xl leading-snug;
+    letter-spacing: -0.018em;
+  }
+
+  h3 {
+    @apply text-base leading-snug;
+  }
+
+  h4 {
+    @apply text-sm leading-snug;
+  }
+
+  p {
+    text-wrap: pretty;
+  }
+
+  code,
+  kbd,
+  pre,
+  samp {
+    font-family: var(--font-mono), ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas,
+      monospace;
   }
 
   *:focus-visible {
     outline: none;
   }
 
-  h1,
-  h2,
-  h3,
-  h4 {
-    text-wrap: balance;
+  ::selection {
+    background-color: hsl(var(--primary) / 0.22);
   }
 
   .scroll-mt-header {
@@ -83,14 +228,34 @@
   }
 }
 
+@layer components {
+  /* Consistent focus ring used across interactive elements */
+  .focus-ring {
+    @apply focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/70 focus-visible:ring-offset-2 focus-visible:ring-offset-background;
+  }
+
+  /* Small uppercase section label — Notion-style metadata */
+  .eyebrow {
+    @apply text-[0.6875rem] font-semibold uppercase tracking-[0.08em] text-muted-foreground;
+  }
+
+  /* Subtle hairline separator */
+  .hairline {
+    @apply border-border/70;
+  }
+}
+
 @layer utilities {
   .scrollbar-thin::-webkit-scrollbar {
     width: 6px;
     height: 6px;
   }
   .scrollbar-thin::-webkit-scrollbar-thumb {
-    background: hsl(var(--border));
-    border-radius: 3px;
+    background: hsl(var(--border-strong));
+    border-radius: 999px;
+  }
+  .scrollbar-thin::-webkit-scrollbar-thumb:hover {
+    background: hsl(var(--muted-foreground) / 0.5);
   }
   .scrollbar-thin::-webkit-scrollbar-track {
     background: transparent;
@@ -105,6 +270,21 @@
   }
   .safe-pb {
     padding-bottom: env(safe-area-inset-bottom, 0);
+  }
+
+  /* Faint dotted texture used behind empty states */
+  .texture-dots {
+    background-image: radial-gradient(hsl(var(--border-strong) / 0.7) 1px, transparent 1px);
+    background-size: 16px 16px;
+  }
+
+  /* Soft radial wash used on hero / empty surfaces */
+  .wash-primary {
+    background-image: radial-gradient(
+      120% 100% at 50% 0%,
+      hsl(var(--primary) / 0.07) 0%,
+      transparent 62%
+    );
   }
 }
 
