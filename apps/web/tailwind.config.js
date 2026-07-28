@@ -34,11 +34,6 @@ module.exports = {
       fontSize: {
         "2xs": ["0.6875rem", { lineHeight: "1rem" }],
       },
-      letterSpacing: {
-        tighter: "-0.021em",
-        tight: "-0.014em",
-ведь: "0",
-      },
       colors: {
         background: "hsl(var(--background))",
         foreground: "hsl(var(--foreground))",
@@ -109,9 +104,8 @@ module.exports = {
         raised: "var(--shadow-raised)",
         overlay: "var(--shadow-overlay)",
       },
-      transitionDuration: {
-        150: "150ms",
-        200: "200ms",
+      transitionTimingFunction: {
+        "out-expo": "cubic-bezier(0.22, 1, 0.36, 1)",
       },
       keyframes: {
         "accordion-down": {
@@ -134,9 +128,6 @@ module.exports = {
           from: { opacity: "0", transform: "scale(0.97)" },
           to: { opacity: "1", transform: "scale(1)" },
         },
-        shimmer: {
-          "100%": { transform: "translateX(100%)" },
-        },
       },
       animation: {
         "accordion-down": "accordion-down 0.2s ease-out",
@@ -144,7 +135,6 @@ module.exports = {
         "fade-in": "fade-in 0.2s ease-out",
         "slide-up": "slide-up 0.24s cubic-bezier(0.22, 1, 0.36, 1)",
         "scale-in": "scale-in 0.16s cubic-bezier(0.22, 1, 0.36, 1)",
-        shimmer: "shimmer 1.6s infinite",
       },
     },
   },

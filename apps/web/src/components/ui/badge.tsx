@@ -3,34 +3,61 @@ import { cva, type VariantProps } from "class-variance-authority";
 import { cn } from "@/lib/cn";
 
 const badgeVariants = cva(
-  "inline-flex items-center rounded-full border px-2.5 py-0.5 text-xs font-medium transition-colors focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2",
+  cn(
+    "inline-flex items-center gap-1.5 rounded-full border px-2.5 py-0.5",
+    "text-xs font-medium leading-5",
+    "transition-colors duration-150",
+    "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/70 focus-visible:ring-offset-2 focus-visible:ring-offset-background"
+  ),
   {
     variants: {
       variant: {
         default: "border-transparent bg-primary text-primary-foreground",
         secondary: "border-transparent bg-accent text-accent-foreground",
-        outline: "text-foreground",
-        success:
-          "border-transparent bg-emerald-100 text-emerald-900 dark:bg-emerald-900/30 dark:text-emerald-300",
-        warning:
-          "border-transparent bg-amber-100 text-amber-900 dark:bg-amber-900/30 dark:text-amber-300",
-        info:
-          "border-transparent bg-sky-100 text-sky-900 dark:bg-sky-900/30 dark:text-sky-300",
+        outline: "border-border text-foreground",
         muted: "border-transparent bg-muted text-muted-foreground",
-        danger:
-          "border-transparent bg-rose-100 text-rose-900 dark:bg-rose-900/30 dark:text-rose-300",
+        // Semantic tones resolve through theme tokens: pastel in light, muted in dark.
+        success: "border-transparent bg-success-soft text-success-soft-foreground",
+        warning: "border-transparent bg-warning-soft text-warning-soft-foreground",
+        info: "border-transparent bg-info-soft text-info-soft-foreground",
+        danger: "border-transparent bg-danger-soft text-danger-soft-foreground",
       },
     },
     defaultVariants: { variant: "default" },
   }
 );
 
+/** Dot colours keyed to the badge variant, for the optional status indicator. */
+const DOT_CLASS: Record<string, string> = {
+  default: "bg-primary-foreground/70",
+  secondary: "bg-accent-foreground/50",
+  outline: "bg-muted-foreground",
+  muted: "bg-muted-foreground",
+  success: "bg-success",
+  warning: "bg-warning",
+  info: "bg-info",
+  danger: "bg-danger",
+};
+
 export interface BadgeProps
   extends React.HTMLAttributes<HTMLSpanElement>,
-    VariantProps<typeof badgeVariants> {}
+    VariantProps<typeof badgeVariants> {
+  /** Renders a small leading status dot. Decorative only. */
+  dot?: boolean;
+}
 
-export function Badge({ className, variant, ...props }: BadgeProps) {
-  return <span className={cn(badgeVariants({ variant }), className)} {...props} />;
+export function Badge({ className, variant, dot = false, children, ...props }: BadgeProps) {
+  return (
+    <span className={cn(badgeVariants({ variant }), className)} {...props}>
+      {dot && (
+        <span
+          aria-hidden="true"
+          className={cn("size-1.5 shrink-0 rounded-full", DOT_CLASS[variant ?? "default"])}
+        />
+      )}
+      {children}
+    </span>
+  );
 }
 
 export { badgeVariants };

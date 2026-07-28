@@ -66,7 +66,7 @@ function ToastViewport({
   onDismiss: (id: string) => void;
 }) {
   return (
-    <div className="pointer-events-none fixed inset-x-0 bottom-4 z-50 flex w-full flex-col items-center gap-2 px-4 sm:items-end sm:right-4 sm:left-auto sm:px-0">
+    <div className="pointer-events-none fixed inset-x-0 bottom-4 z-50 flex w-full flex-col items-center gap-2 px-4 safe-pb sm:left-auto sm:right-4 sm:items-end sm:px-0">
       <div
         role="status"
         aria-live="polite"
@@ -88,32 +88,50 @@ function ToastCard({
   toast: Toast;
   onDismiss: (id: string) => void;
 }) {
+  const isDestructive = toast.variant === "destructive";
+
   return (
     <div
       className={cn(
-        "pointer-events-auto rounded-md border bg-card p-3 text-card-foreground shadow-md",
-        toast.variant === "destructive" && "border-destructive/40 bg-destructive/5"
+        "pointer-events-auto relative overflow-hidden rounded-lg border border-border",
+        "bg-popover/95 p-3.5 pl-4 text-popover-foreground shadow-overlay backdrop-blur-sm",
+        "animate-slide-up",
+        isDestructive && "border-danger/40"
       )}
     >
-      <div className="flex items-start gap-2">
-        <div className="flex-1">
-          {toast.title && <div className="text-sm font-medium">{toast.title}</div>}
+      {/* Accent rail — carries the semantic colour without tinting the whole surface. */}
+      <span
+        aria-hidden="true"
+        className={cn(
+          "absolute inset-y-0 left-0 w-[3px]",
+          isDestructive ? "bg-danger" : "bg-primary"
+        )}
+      />
+      <div className="flex items-start gap-3">
+        <div className="flex-1 space-y-0.5">
+          {toast.title && (
+            <div className="text-sm font-medium leading-snug tracking-tight">{toast.title}</div>
+          )}
           {toast.description && (
-            <div className="mt-0.5 text-xs text-muted-foreground">{toast.description}</div>
+            <div className="text-xs leading-relaxed text-muted-foreground">{toast.description}</div>
           )}
         </div>
         <button
           type="button"
           onClick={() => onDismiss(toast.id)}
           aria-label="Dismiss notification"
-          className="-m-1 grid h-7 w-7 place-items-center rounded text-muted-foreground hover:bg-accent hover:text-accent-foreground"
+          className={cn(
+            "-m-1 grid size-7 shrink-0 place-items-center rounded-md text-muted-foreground",
+            "transition-colors duration-150 hover:bg-surface-hover hover:text-foreground",
+            "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/70 focus-visible:ring-offset-2 focus-visible:ring-offset-popover"
+          )}
         >
           <span aria-hidden="true">×</span>
         </button>
       </div>
       <span className={VISUALLY_HIDDEN_CLASS}>
         {toast.title ?? "Notification"}
-        {toast.variant === "destructive" ? " (error)" : ""}
+        {isDestructive ? " (error)" : ""}
       </span>
     </div>
   );
