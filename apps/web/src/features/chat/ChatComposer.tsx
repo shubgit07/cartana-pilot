@@ -1,9 +1,9 @@
 "use client";
 
 import * as React from "react";
-import { Loader2, Send } from "lucide-react";
+import { Loader2, SendHorizonal } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { Textarea } from "@/components/ui/textarea";
+import { cn } from "@/lib/cn";
 
 type Props = {
   onSend: (text: string) => void;
@@ -13,6 +13,7 @@ type Props = {
 export function ChatComposer({ onSend, sending }: Props) {
   const [value, setValue] = React.useState("");
   const ref = React.useRef<HTMLTextAreaElement | null>(null);
+  const canSend = value.trim().length > 0 && !sending;
 
   function submit() {
     const text = value.trim();
@@ -33,8 +34,16 @@ export function ChatComposer({ onSend, sending }: Props) {
       <label htmlFor="chat-input" className="sr-only">
         Ask a question
       </label>
-      <div className="flex items-end gap-2">
-        <Textarea
+
+      {/* Unified composer well — textarea and action read as one control. */}
+      <div
+        className={cn(
+          "flex items-end gap-2 rounded-xl border border-input bg-surface p-2 shadow-soft",
+          "transition-[border-color,box-shadow] duration-150 ease-out-expo",
+          "focus-within:border-ring focus-within:ring-2 focus-within:ring-ring/25"
+        )}
+      >
+        <textarea
           id="chat-input"
           name="chatInput"
           ref={ref}
@@ -44,7 +53,11 @@ export function ChatComposer({ onSend, sending }: Props) {
           onKeyDown={handleKeyDown}
           rows={2}
           maxLength={4000}
-          className="resize-none"
+          className={cn(
+            "min-h-[52px] w-full resize-none bg-transparent px-2 py-1.5 text-sm leading-relaxed text-foreground",
+            "placeholder:text-muted-foreground/80",
+            "focus-visible:outline-none disabled:cursor-not-allowed disabled:opacity-60"
+          )}
           aria-label="Ask a question about your project material"
           spellCheck
           autoComplete="off"
@@ -52,21 +65,28 @@ export function ChatComposer({ onSend, sending }: Props) {
         <Button
           type="button"
           onClick={submit}
-          disabled={!value.trim() || sending}
-          size="lg"
+          disabled={!canSend}
+          size="icon"
+          className="shrink-0"
           aria-label={sending ? "Sending…" : "Send message"}
         >
           {sending ? (
             <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />
           ) : (
-            <Send className="h-4 w-4" aria-hidden="true" />
+            <SendHorizonal className="h-4 w-4" aria-hidden="true" />
           )}
         </Button>
       </div>
-      <p className="mt-1 text-xs text-muted-foreground">
-        <kbd className="rounded border bg-muted px-1 tabular">Enter</kbd> to send ·{" "}
-        <kbd className="rounded border bg-muted px-1">Shift</kbd> +{" "}
-        <kbd className="rounded border bg-muted px-1 tabular">Enter</kbd> for a new line
+
+      <p className="mt-1.5 text-xs text-muted-foreground/80">
+        <kbd className="rounded border border-border bg-surface-sunken px-1.5 py-0.5 font-sans text-2xs">
+          Enter
+        </kbd>{" "}
+        to send ·{" "}
+        <kbd className="rounded border border-border bg-surface-sunken px-1.5 py-0.5 font-sans text-2xs">
+          Shift + Enter
+        </kbd>{" "}
+        for a new line
       </p>
     </div>
   );

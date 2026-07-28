@@ -10,7 +10,7 @@ const QUESTIONS = [
 export function SuggestedQuestions({ onPick }: { onPick: (text: string) => void }) {
   return (
     <div className="space-y-3">
-      <p className="text-sm text-muted-foreground">
+      <p className="text-sm leading-relaxed text-muted-foreground">
         Ask anything about the uploaded project material. Try a suggested question:
       </p>
       <div className="flex flex-wrap gap-2">
@@ -20,7 +20,7 @@ export function SuggestedQuestions({ onPick }: { onPick: (text: string) => void 
             type="button"
             onClick={() => onPick(q)}
             aria-label={`Ask: ${q}`}
-            className="rounded-full border bg-background px-3 py-1 text-xs transition-colors hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+            className="rounded-full border border-border bg-surface px-3.5 py-1.5 text-xs text-muted-foreground shadow-soft transition-[background-color,border-color,color,box-shadow] duration-150 hover:border-border-strong hover:bg-primary-soft hover:text-primary-soft-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/70 focus-visible:ring-offset-2 focus-visible:ring-offset-background"
           >
             {q}
           </button>
