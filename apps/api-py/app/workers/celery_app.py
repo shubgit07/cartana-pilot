@@ -1,0 +1,23 @@
+from celery import Celery
+
+from app.config import get_settings
+
+settings = get_settings()
+
+celery_app = Celery(
+    "cartana",
+    broker=settings.redis_url,
+    backend=settings.redis_url,
+)
+
+celery_app.conf.update(
+    task_serializer="json",
+    accept_content=["json"],
+    result_serializer="json",
+    timezone="UTC",
+    enable_utc=True,
+)
+
+# Task modules for the ingest -> chunk -> embed -> extractRequirements ->
+# extractTasks -> runAudit pipeline are registered here as each stage is
+# migrated.
