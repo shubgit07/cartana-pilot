@@ -35,11 +35,11 @@ export function AuditPanel({ projectId }: Props) {
   }
 
   return (
-    <div className="space-y-6">
+    <section className="mx-auto w-full max-w-4xl space-y-6 pb-10" aria-label="Audit">
       <AuditHeader running={running} hasResults={hasResults} onRun={handleRun} />
 
       {loading && (
-        <div className="space-y-4">
+        <div className="space-y-4" aria-busy="true" aria-label="Loading audit results">
           <Skeleton className="h-32 w-full" />
           <Skeleton className="h-48 w-full" />
         </div>
@@ -48,12 +48,12 @@ export function AuditPanel({ projectId }: Props) {
       {!loading && !run && !running && <AuditEmpty />}
 
       {run && (
-        <>
+        <div className="animate-fade-in space-y-6">
           <RiskSummary run={run} />
           <AuditFindings findings={run.findings} />
           <CoverageMatrix projectId={projectId} />
-        </>
+        </div>
       )}
-    </div>
+    </section>
   );
 }
