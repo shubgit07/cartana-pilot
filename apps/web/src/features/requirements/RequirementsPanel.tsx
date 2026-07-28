@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { ConfirmDialog } from "@/components/common/ConfirmDialog";
 import { EmptyState } from "@/components/common/EmptyState";
-import { ListChecks } from "lucide-react";
+import { ListChecks, RefreshCw } from "lucide-react";
 import { useToast } from "@/components/ui/toast";
 import { messageOf, useRequirements } from "@/hooks/api";
 import { RequirementRow } from "./RequirementRow";
@@ -18,6 +18,9 @@ export function RequirementsPanel({ projectId }: Props) {
   const { requirements, loading, error, update, remove, reload } = useRequirements(projectId);
   const { toast } = useToast();
   const [pendingDelete, setPendingDelete] = React.useState<RequirementSummary | null>(null);
+
+  const acceptedCount = requirements?.filter((r) => r.state === "accepted").length ?? 0;
+  const totalCount = requirements?.length ?? 0;
 
   async function setState(id: string, state: "accepted" | "rejected") {
     try {
@@ -62,33 +65,51 @@ export function RequirementsPanel({ projectId }: Props) {
 
   return (
     <Card>
-      <CardHeader className="flex flex-row items-center justify-between">
-        <div className="space-y-1">
-          <CardTitle className="flex items-center gap-2">
-            <ListChecks className="h-4 w-4" aria-hidden="true" />
-            Requirements
-          </CardTitle>
-          <CardDescription>
-            Extracted from your project material. Accept, edit, or reject each suggestion.
-          </CardDescription>
+      <CardHeader className="gap-3 border-b border-border/70">
+        <div className="flex flex-wrap items-start justify-between gap-3">
+          <div className="min-w-0 space-y-1">
+            <span className="eyebrow">Scope</span>
+            <CardTitle className="flex items-center gap-2 text-lg">
+              <ListChecks className="h-4 w-4 text-muted-foreground" aria-hidden="true" />
+              Requirements
+            </CardTitle>
+            <CardDescription>
+              Extracted from your project material. Accept, edit, or reject each suggestion.
+            </CardDescription>
+          </div>
+
+          <div className="flex shrink-0 items-center gap-3">
+            {totalCount > 0 && (
+              <span className="text-xs text-muted-foreground tabular">
+                {acceptedCount}/{totalCount} accepted
+              </span>
+            )}
+            <Button size="sm" variant="outline" onClick={reload}>
+              <RefreshCw className="h-3.5 w-3.5" aria-hidden="true" />
+              <span className="ml-1.5">Refresh</span>
+            </Button>
+          </div>
         </div>
-        <Button size="sm" variant="outline" onClick={reload}>
-          Refresh
-        </Button>
       </CardHeader>
-      <CardContent>
+
+      <CardContent className="pt-5">
         {loading && (
-          <div className="space-y-3" aria-busy="true">
+          <div className="space-y-2" aria-busy="true" aria-label="Loading requirements">
             {Array.from({ length: 3 }).map((_, i) => (
-              <Skeleton key={i} className="h-16 w-full" />
+              <Skeleton key={i} className="h-20 w-full" />
             ))}
           </div>
         )}
+
         {error && (
-          <p role="alert" className="text-sm text-destructive">
+          <p
+            role="alert"
+            className="rounded-lg border border-danger/25 bg-danger-soft px-3 py-2 text-sm text-danger-soft-foreground"
+          >
             {error}
           </p>
         )}
+
         {!loading && requirements && requirements.length === 0 && (
           <EmptyState
             icon="inbox"
@@ -96,10 +117,11 @@ export function RequirementsPanel({ projectId }: Props) {
             description="Once you upload a document, extraction will start automatically."
           />
         )}
+
         {!loading && requirements && requirements.length > 0 && (
-          <ul className="divide-y">
+          <ul className="space-y-2">
             {requirements.map((r) => (
-              <li key={r.id} className="py-4 first:pt-0 last:pb-0">
+              <li key={r.id}>
                 <RequirementRow
                   requirement={r}
                   onAccept={() => setState(r.id, "accepted")}
