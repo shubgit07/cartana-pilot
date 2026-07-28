@@ -7,9 +7,6 @@ existence of another user's rows.
 """
 from __future__ import annotations
 
-from datetime import datetime, timezone
-from enum import Enum
-
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
@@ -33,46 +30,12 @@ _CHUNK_COUNT = (
 )
 
 
-def to_iso8601(value: datetime) -> str:
-    """Render a timestamp exactly like JavaScript's ``Date.toISOString()``.
+def get_owned_project(db: Session, user_id: str, project_id: str) -> Project:
+    """Load a project owned by ``user_id`` or raise ``NotFoundError``.
 
-    Timestamps are stored as naive UTC values (Prisma ``timestamp(3)``), so a
-    naive value is treated as UTC and formatted with millisecond precision and
-    a trailing ``Z``. The frontend parses these strings directly.
+    Shared with the modules that hang off a project (sources, chat, ...) so
+    ownership is enforced identically everywhere.
     """
-    moment = value if value.tzinfo is not None else value.replace(tzinfo=timezone.utc)
-    moment = moment.astimezone(timezone.utc)
-    return f"{moment.strftime('%Y-%m-%dT%H:%M:%S')}.{moment.microsecond // 1000:03d}Z"
-
-
-def _enum_value(value: object) -> str:
-    return value.value if isinstance(value, Enum) else str(value)
-
-
-def _to_summary(project: Project, source_count: int) -> ProjectSummary:
-    return ProjectSummary(
-        id=project.id,
-        name=project.name,
-        description=project.description,
-        createdAt=to_iso8601(project.created_at),
-        sourceCount=source_count,
-    )
-
-
-def _to_source_summary(source: Source, chunk_count: int) -> SourceSummary:
-    return SourceSummary(
-        id=source.id,
-        projectId=source.project_id,
-        filename=source.filename,
-        kind=_enum_value(source.kind),
-        status=_enum_value(source.status),
-        errorMessage=source.error_message,
-        createdAt=to_iso8601(source.created_at),
-        chunkCount=chunk_count,
-    )
-
-
-def _get_owned_project(db: Session, user_id: str, project_id: str) -> Project:
     project = db.execute(
         select(Project).where(Project.id == project_id, Project.user_id == user_id)
     ).scalar_one_or_none()
@@ -93,19 +56,18 @@ def list_projects(db: Session, user_id: str) -> list[ProjectSummary]:
         .where(Project.user_id == user_id)
         .order_by(Project.created_at.desc())
     ).all()
-    return [_to_summary(project, source_count) for project, source_count in rows]
+    return [ProjectSummary.from_model(project, source_count) for project, source_count in rows]
 
 
 def get_project(db: Session, user_id: str, project_id: str) -> ProjectDetail:
-    project = _get_owned_project(db, user_id, project_id)
+    project = get_owned_project(db, user_id, project_id)
     rows = db.execute(
         select(Source, _CHUNK_COUNT.label("chunk_count"))
         .where(Source.project_id == project.id)
         .order_by(Source.created_at.desc())
     ).all()
-    sources = [_to_source_summary(source, chunk_count) for source, chunk_count in rows]
-    summary = _to_summary(project, len(sources))
-    return ProjectDetail(**summary.model_dump(), sources=sources)
+    sources = [SourceSummary.from_model(source, chunk_count) for source, chunk_count in rows]
+    return ProjectDetail.from_project(project, sources)
 
 
 def create_project(db: Session, user_id: str, payload: CreateProject) -> ProjectSummary:
@@ -113,11 +75,11 @@ def create_project(db: Session, user_id: str, payload: CreateProject) -> Project
     db.add(project)
     db.commit()
     db.refresh(project)
-    return _to_summary(project, 0)
+    return ProjectSummary.from_model(project, source_count=0)
 
 
 def update_project(db: Session, user_id: str, project_id: str, payload: UpdateProject) -> ProjectSummary:
-    project = _get_owned_project(db, user_id, project_id)
+    project = get_owned_project(db, user_id, project_id)
 
     changes = payload.model_dump(exclude_unset=True)
     if changes.get("name") is not None:
@@ -127,10 +89,10 @@ def update_project(db: Session, user_id: str, project_id: str, payload: UpdatePr
 
     db.commit()
     db.refresh(project)
-    return _to_summary(project, _count_sources(db, project.id))
+    return ProjectSummary.from_model(project, _count_sources(db, project.id))
 
 
 def delete_project(db: Session, user_id: str, project_id: str) -> None:
-    project = _get_owned_project(db, user_id, project_id)
+    project = get_owned_project(db, user_id, project_id)
     db.delete(project)
     db.commit()

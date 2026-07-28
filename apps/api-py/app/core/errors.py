@@ -12,6 +12,18 @@ class AppError(Exception):
         super().__init__(message)
 
 
+class ValidationError(AppError):
+    """Raised for requests the service layer cannot accept (HTTP 400).
+
+    FastAPI already rejects malformed bodies with 422; this covers checks that
+    need database or domain context, such as a source that belongs to another
+    project.
+    """
+
+    def __init__(self, message: str = "Invalid request", code: str = "validation_error") -> None:
+        super().__init__(message, status_code=400, code=code)
+
+
 class NotFoundError(AppError):
     """Raised when a record does not exist or is not owned by the caller.
 
@@ -21,6 +33,13 @@ class NotFoundError(AppError):
 
     def __init__(self, message: str = "Not found", code: str = "not_found") -> None:
         super().__init__(message, status_code=404, code=code)
+
+
+class PayloadTooLargeError(AppError):
+    """Raised when an upload exceeds the configured size limit (HTTP 413)."""
+
+    def __init__(self, message: str = "Payload too large", code: str = "payload_too_large") -> None:
+        super().__init__(message, status_code=413, code=code)
 
 
 async def app_error_handler(request: Request, exc: AppError) -> JSONResponse:

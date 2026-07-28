@@ -16,8 +16,9 @@ celery_app.conf.update(
     result_serializer="json",
     timezone="UTC",
     enable_utc=True,
+    imports=("app.workers.tasks.ingest",),
 )
 
-# Task modules for the ingest -> chunk -> embed -> extractRequirements ->
-# extractTasks -> runAudit pipeline are registered here as each stage is
-# migrated.
+# Remaining stages of the ingest -> chunk -> embed -> extractRequirements ->
+# extractTasks -> runAudit pipeline are added to ``imports`` above as each one
+# is migrated.
