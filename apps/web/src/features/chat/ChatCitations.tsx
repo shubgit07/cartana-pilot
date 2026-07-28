@@ -3,6 +3,7 @@
 import * as React from "react";
 import type { ChatCitation } from "@cartana/shared";
 import { Badge } from "@/components/ui/badge";
+import { cn } from "@/lib/cn";
 import { formatScore } from "@/lib/format";
 import { FileText } from "lucide-react";
 
@@ -47,4 +48,3 @@ export function ChatCitations({ citations }: { citations: ChatCitation[] }) {
     </section>
   );
 }
-import { cn } from "@/lib/cn";
