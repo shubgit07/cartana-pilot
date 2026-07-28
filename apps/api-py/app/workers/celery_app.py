@@ -18,7 +18,3 @@ celery_app.conf.update(
     enable_utc=True,
     imports=("app.workers.tasks.ingest",),
 )
-
-# Remaining stages of the ingest -> chunk -> embed -> extractRequirements ->
-# extractTasks -> runAudit pipeline are added to ``imports`` above as each one
-# is migrated.
