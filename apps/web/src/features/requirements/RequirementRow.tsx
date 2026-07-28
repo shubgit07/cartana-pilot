@@ -16,6 +16,14 @@ type Props = {
   onDelete: () => void;
 };
 
+/** Left rail colour per requirement state, resolved through theme tokens. */
+const STATE_RAIL: Record<string, string> = {
+  accepted: "bg-success",
+  edited: "bg-warning",
+  suggested: "bg-info",
+  rejected: "bg-border-strong",
+};
+
 export function RequirementRow({ requirement: r, onAccept, onReject, onSave, onDelete }: Props) {
   const [editing, setEditing] = React.useState(false);
   const [pending, setPending] = React.useState<"accept" | "reject" | null>(null);
@@ -41,8 +49,21 @@ export function RequirementRow({ requirement: r, onAccept, onReject, onSave, onD
   }
 
   return (
-    <div className={cn(isHidden && "opacity-60")}>
-      <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
+    <div
+      className={cn(
+        "group relative overflow-hidden rounded-lg border border-border/70 bg-surface",
+        "py-3.5 pl-4 pr-3.5",
+        "transition-[border-color,box-shadow,opacity] duration-200 ease-out-expo",
+        "hover:border-border-strong hover:shadow-card",
+        isHidden && "opacity-60"
+      )}
+    >
+      <span
+        aria-hidden="true"
+        className={cn("absolute inset-y-0 left-0 w-1", STATE_RAIL[r.state] ?? "bg-border-strong")}
+      />
+
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
         <div className="min-w-0 flex-1">
           {editing ? (
             <RequirementEditForm
@@ -57,25 +78,40 @@ export function RequirementRow({ requirement: r, onAccept, onReject, onSave, onD
             />
           ) : (
             <>
-              <h3 className="text-sm font-medium">{r.title}</h3>
-              {r.description && (
-                <p className="mt-1 text-sm break-words text-muted-foreground">{r.description}</p>
-              )}
-              <div className="mt-2 flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
-                <RequirementStateBadge state={r.state} origin={r.origin} />
-                {r.sourceLinks.length > 0 && (
-                  <span className="inline-flex items-center gap-1">
-                    <FileText className="h-3 w-3" aria-hidden="true" />
-                    {r.sourceLinks.map((s) => s.filename).join(", ")}
-                  </span>
+              <h3
+                className={cn(
+                  "break-words text-sm font-medium leading-snug",
+                  isHidden && "line-through decoration-border-strong"
                 )}
+              >
+                {r.title}
+              </h3>
+
+              {r.description && (
+                <p className="mt-1 break-words text-sm leading-relaxed text-muted-foreground">
+                  {r.description}
+                </p>
+              )}
+
+              <div className="mt-2.5 flex flex-wrap items-center gap-2">
+                <RequirementStateBadge state={r.state} origin={r.origin} />
+
+                {r.sourceLinks.map((s) => (
+                  <span
+                    key={s.filename}
+                    className="inline-flex min-w-0 items-center gap-1 rounded-md border border-border/70 bg-surface-sunken px-1.5 py-0.5 text-2xs text-muted-foreground"
+                  >
+                    <FileText className="h-3 w-3 shrink-0" aria-hidden="true" />
+                    <span className="truncate">{s.filename}</span>
+                  </span>
+                ))}
               </div>
             </>
           )}
         </div>
 
         {!editing && (
-          <div className="flex flex-wrap items-center gap-2 sm:justify-end">
+          <div className="flex shrink-0 flex-wrap items-center gap-1.5 sm:justify-end">
             {!isDecided && (
               <>
                 <Button
@@ -107,22 +143,32 @@ export function RequirementRow({ requirement: r, onAccept, onReject, onSave, onD
                 </Button>
               </>
             )}
-            <Button
-              size="icon"
-              variant="ghost"
-              onClick={() => setEditing(true)}
-              aria-label={`Edit requirement "${r.title}"`}
+
+            {/* Secondary actions fade in on hover but stay reachable via keyboard. */}
+            <div
+              className={cn(
+                "flex items-center gap-1",
+                "opacity-100 transition-opacity duration-200 ease-out-expo",
+                "sm:opacity-0 sm:group-hover:opacity-100 sm:group-focus-within:opacity-100"
+              )}
             >
-              <Pencil className="h-3.5 w-3.5" aria-hidden="true" />
-            </Button>
-            <Button
-              size="icon"
-              variant="ghost"
-              onClick={onDelete}
-              aria-label={`Delete requirement "${r.title}"`}
-            >
-              <Trash2 className="h-3.5 w-3.5" aria-hidden="true" />
-            </Button>
+              <Button
+                size="icon"
+                variant="ghost"
+                onClick={() => setEditing(true)}
+                aria-label={`Edit requirement "${r.title}"`}
+              >
+                <Pencil className="h-3.5 w-3.5" aria-hidden="true" />
+              </Button>
+              <Button
+                size="icon"
+                variant="ghost"
+                onClick={onDelete}
+                aria-label={`Delete requirement "${r.title}"`}
+              >
+                <Trash2 className="h-3.5 w-3.5" aria-hidden="true" />
+              </Button>
+            </div>
           </div>
         )}
       </div>
