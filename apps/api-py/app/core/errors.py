@@ -12,6 +12,17 @@ class AppError(Exception):
         super().__init__(message)
 
 
+class NotFoundError(AppError):
+    """Raised when a record does not exist or is not owned by the caller.
+
+    Mirrors the Node backend's NotFoundError: ownership failures are reported
+    as 404 so the API never leaks the existence of another user's rows.
+    """
+
+    def __init__(self, message: str = "Not found", code: str = "not_found") -> None:
+        super().__init__(message, status_code=404, code=code)
+
+
 async def app_error_handler(request: Request, exc: AppError) -> JSONResponse:
     return JSONResponse(
         status_code=exc.status_code,
