@@ -107,8 +107,8 @@ export function NewTaskForm({ projectId, open, onOpenChange, linkableRequirement
   const showDescCount = description.length >= MAX_DESCRIPTION * COUNTER_THRESHOLD;
 
   return (
-    // id is referenced by TasksHeader's aria-controls.
-    <Card id="new-task-card" className="animate-scale-in border-primary/25">
+    // The #new-task-card anchor lives on the persistent wrapper in TasksPanel.
+    <Card className="animate-scale-in border-primary/25">
       <CardHeader className="gap-1 border-b border-border/70">
         <span className="eyebrow">Create</span>
         <CardTitle className="text-lg">New task</CardTitle>
