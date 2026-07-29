@@ -16,6 +16,9 @@ import { RequirementSelect } from "./RequirementSelect";
 const MAX_TITLE = 240;
 const MAX_DESCRIPTION = 4000;
 
+/** Show the counter only once the value is close to the cap. */
+const COUNTER_THRESHOLD = 0.8;
+
 type Option = { id: string; title: string };
 
 type Props = {
@@ -34,6 +37,12 @@ export function NewTaskForm({ projectId, open, onOpenChange, linkableRequirement
   const [submitting, setSubmitting] = React.useState(false);
   const titleRef = React.useRef<HTMLInputElement | null>(null);
 
+  // Scoped ids avoid colliding with the inline task edit form.
+  const uid = React.useId();
+  const titleId = `${uid}-title`;
+  const descId = `${uid}-desc`;
+  const reqId = `${uid}-requirement`;
+
   const dirty =
     open && (title.trim().length > 0 || description.trim().length > 0 || !!requirementId);
   useUnsavedChanges(dirty);
@@ -51,6 +60,18 @@ export function NewTaskForm({ projectId, open, onOpenChange, linkableRequirement
     setTitle("");
     setDescription("");
     setRequirementId("");
+  }
+
+  function handleCancel() {
+    reset();
+    onOpenChange(false);
+  }
+
+  function handleKeyDown(e: React.KeyboardEvent) {
+    if (e.key === "Escape" && !submitting) {
+      e.preventDefault();
+      handleCancel();
+    }
   }
 
   async function handleSubmit(e: React.FormEvent) {
@@ -82,66 +103,87 @@ export function NewTaskForm({ projectId, open, onOpenChange, linkableRequirement
 
   if (!open) return null;
 
+  const showTitleCount = title.length >= MAX_TITLE * COUNTER_THRESHOLD;
+  const showDescCount = description.length >= MAX_DESCRIPTION * COUNTER_THRESHOLD;
+
   return (
-    <Card>
-      <CardHeader>
-        <CardTitle>New task</CardTitle>
+    // id is referenced by TasksHeader's aria-controls.
+    <Card id="new-task-card" className="animate-scale-in border-primary/25">
+      <CardHeader className="gap-1 border-b border-border/70">
+        <span className="eyebrow">Create</span>
+        <CardTitle className="text-lg">New task</CardTitle>
         <CardDescription>
           Add a task manually. Optionally link it to an existing requirement.
         </CardDescription>
       </CardHeader>
-      <CardContent>
-        <form onSubmit={handleSubmit} className="space-y-3" noValidate>
-          <div className="space-y-2">
-            <Label htmlFor="task-title">
-              Title <span className="text-destructive" aria-hidden="true">*</span>
-            </Label>
+
+      <CardContent className="pt-5">
+        <form onSubmit={handleSubmit} onKeyDown={handleKeyDown} className="space-y-3" noValidate>
+          <div className="space-y-1.5">
+            <div className="flex items-baseline justify-between gap-2">
+              <Label htmlFor={titleId}>
+                Title{" "}
+                <span className="text-danger" aria-hidden="true">
+                  *
+                </span>
+              </Label>
+              {showTitleCount && (
+                <span className="text-2xs text-muted-foreground tabular">
+                  {title.length}/{MAX_TITLE}
+                </span>
+              )}
+            </div>
             <Input
-              id="task-title"
+              id={titleId}
               ref={titleRef}
               value={title}
               onChange={(e) => setTitle(e.target.value)}
-              placeholder="e.g. Build OTP login flow…"
+              placeholder="e.g. Build OTP login flow\u2026"
               maxLength={MAX_TITLE}
               autoComplete="off"
               spellCheck
               required
             />
           </div>
-          <div className="space-y-2">
-            <Label htmlFor="task-desc">Description</Label>
+
+          <div className="space-y-1.5">
+            <div className="flex items-baseline justify-between gap-2">
+              <Label htmlFor={descId}>Description</Label>
+              {showDescCount && (
+                <span className="text-2xs text-muted-foreground tabular">
+                  {description.length}/{MAX_DESCRIPTION}
+                </span>
+              )}
+            </div>
             <Textarea
-              id="task-desc"
+              id={descId}
               value={description}
               onChange={(e) => setDescription(e.target.value)}
               rows={3}
               maxLength={MAX_DESCRIPTION}
-              placeholder="Optional details…"
+              placeholder="Optional details\u2026"
             />
           </div>
+
           <RequirementSelect
             value={requirementId}
             onChange={setRequirementId}
             requirements={linkableRequirements}
-            id="task-requirement"
+            id={reqId}
             name="taskRequirement"
           />
-          <div className="flex justify-end gap-2 pt-1">
-            <Button
-              type="button"
-              variant="ghost"
-              onClick={() => {
-                reset();
-                onOpenChange(false);
-              }}
-              disabled={submitting}
-            >
+
+          <div className="flex items-center justify-end gap-2 border-t border-border/70 pt-3">
+            <span className="mr-auto hidden text-2xs text-muted-foreground sm:block">
+              Press <kbd className="font-mono">Esc</kbd> to cancel
+            </span>
+            <Button type="button" variant="ghost" onClick={handleCancel} disabled={submitting}>
               Cancel
             </Button>
             <SubmitButton
               type="submit"
               loading={submitting}
-              loadingLabel="Creating…"
+              loadingLabel="Creating\u2026"
               disabled={!title.trim()}
             >
               Create task
