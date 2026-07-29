@@ -1,5 +1,6 @@
 "use client";
 
+import { Upload } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { SourceFileInput } from "@/components/common/SourceFileInput";
 import { useToast } from "@/components/ui/toast";
@@ -34,12 +35,26 @@ export function UploadFileCard({ projectId, busy, onBusyChange }: Props) {
 
   return (
     <Card>
-      <CardHeader>
-        <CardTitle>Upload a file</CardTitle>
-        <CardDescription>PDF or plain text (≤ a few MB). Larger files upload in chunks.</CardDescription>
+      <CardHeader className="gap-1.5">
+        <div className="flex items-center gap-2">
+          <span
+            aria-hidden="true"
+            className="inline-flex size-7 items-center justify-center rounded-md border border-primary/20 bg-primary-soft text-primary-soft-foreground"
+          >
+            <Upload className="h-4 w-4" />
+          </span>
+          <span className="eyebrow">Upload</span>
+        </div>
+        <CardTitle className="text-base">Upload a file</CardTitle>
+        <CardDescription className="leading-relaxed">
+          PDF or plain text (≤ a few MB). Larger files upload in chunks.
+        </CardDescription>
       </CardHeader>
-      <CardContent className="flex flex-wrap items-center gap-3">
+      <CardContent>
         <SourceFileInput onFile={handle} disabled={busy} loading={busy} />
+        <p className="mt-3 text-2xs leading-relaxed text-muted-foreground">
+          Files are chunked and embedded automatically — no extra step needed.
+        </p>
       </CardContent>
     </Card>
   );
