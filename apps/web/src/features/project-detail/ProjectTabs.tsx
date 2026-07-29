@@ -7,6 +7,16 @@ export type ProjectTabProps = {
   [K in NavigationTab]: React.ReactNode;
 };
 
+/** Tab order is the intended left-to-right reading order of the workflow. */
+const TABS: ReadonlyArray<{ value: NavigationTab; label: string }> = [
+  { value: "overview", label: "Overview" },
+  { value: "sources", label: "Sources" },
+  { value: "requirements", label: "Requirements" },
+  { value: "tasks", label: "Tasks" },
+  { value: "chat", label: "Chat" },
+  { value: "audit", label: "Audit" },
+];
+
 export function ProjectTabs({
   value,
   onValueChange,
@@ -22,37 +32,38 @@ export function ProjectTabs({
     <Tabs
       value={value}
       onValueChange={(v) => onValueChange(v as NavigationTab)}
-      className="space-y-2"
+      className="space-y-4"
     >
-      <TabsList aria-label="Project sections" className="w-full justify-start gap-1 overflow-x-auto">
-        <TabsTrigger value="overview">Overview</TabsTrigger>
-        <TabsTrigger value="sources">
-          Sources <span className="ml-1 tabular text-muted-foreground">({sourceCount})</span>
-        </TabsTrigger>
-        <TabsTrigger value="requirements">Requirements</TabsTrigger>
-        <TabsTrigger value="tasks">Tasks</TabsTrigger>
-        <TabsTrigger value="chat">Chat</TabsTrigger>
-        <TabsTrigger value="audit">Audit</TabsTrigger>
+      <TabsList
+        variant="underline"
+        aria-label="Project sections"
+        className="scrollbar-thin w-full justify-start gap-1 overflow-x-auto"
+      >
+        {TABS.map((tab) => (
+          <TabsTrigger key={tab.value} value={tab.value} className="shrink-0">
+            {tab.label}
+            {tab.value === "sources" && (
+              <span
+                className="ml-1.5 rounded-md bg-surface-sunken px-1.5 py-0.5 text-2xs text-muted-foreground tabular"
+                aria-hidden="true"
+              >
+                {sourceCount}
+              </span>
+            )}
+          </TabsTrigger>
+        ))}
       </TabsList>
 
-      <TabsContent value="overview" tabIndex={-1}>
-        {panels.overview}
-      </TabsContent>
-      <TabsContent value="sources" tabIndex={-1}>
-        {panels.sources}
-      </TabsContent>
-      <TabsContent value="requirements" tabIndex={-1}>
-        {panels.requirements}
-      </TabsContent>
-      <TabsContent value="tasks" tabIndex={-1}>
-        {panels.tasks}
-      </TabsContent>
-      <TabsContent value="chat" tabIndex={-1}>
-        {panels.chat}
-      </TabsContent>
-      <TabsContent value="audit" tabIndex={-1}>
-        {panels.audit}
-      </TabsContent>
+      {TABS.map((tab) => (
+        <TabsContent
+          key={tab.value}
+          value={tab.value}
+          tabIndex={-1}
+          className="animate-fade-in focus-visible:outline-none"
+        >
+          {panels[tab.value]}
+        </TabsContent>
+      ))}
     </Tabs>
   );
 }
