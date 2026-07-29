@@ -1,6 +1,7 @@
 "use client";
 
 import * as React from "react";
+import { Files, RefreshCw } from "lucide-react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -61,27 +62,39 @@ export function SourcesPanel({ projectId }: Props) {
       </div>
 
       <Card>
-        <CardHeader className="flex flex-row items-center justify-between">
-          <div>
-            <CardTitle>Sources</CardTitle>
-            <CardDescription>
-              Status updates automatically. Refresh after uploads complete.
-            </CardDescription>
+        <CardHeader className="gap-3 border-b border-border/70">
+          <div className="flex flex-wrap items-start justify-between gap-3">
+            <div className="min-w-0 space-y-1">
+              <span className="eyebrow">Library</span>
+              <CardTitle className="flex items-center gap-2 text-lg">
+                <Files className="h-4 w-4 text-muted-foreground" aria-hidden="true" />
+                Sources
+              </CardTitle>
+              <CardDescription>
+                Status updates automatically. Refresh after uploads complete.
+              </CardDescription>
+            </div>
+
+            <Button size="sm" variant="outline" onClick={reload} className="shrink-0">
+              <RefreshCw className="h-3.5 w-3.5" aria-hidden="true" />
+              <span className="ml-1.5">Refresh</span>
+            </Button>
           </div>
-          <Button size="sm" variant="outline" onClick={reload}>
-            Refresh
-          </Button>
         </CardHeader>
-        <CardContent>
+
+        <CardContent className="pt-5">
           {loading && (
-            <div className="space-y-2">
+            <div className="space-y-2" aria-busy="true" aria-label="Loading sources">
               {Array.from({ length: 3 }).map((_, i) => (
-                <Skeleton key={i} className="h-12 w-full" />
+                <Skeleton key={i} className="h-16 w-full" />
               ))}
             </div>
           )}
           {error && (
-            <p role="alert" className="text-sm text-destructive">
+            <p
+              role="alert"
+              className="rounded-lg border border-danger/25 bg-danger-soft px-3 py-2 text-sm text-danger-soft-foreground"
+            >
               {error}
             </p>
           )}
@@ -93,9 +106,9 @@ export function SourcesPanel({ projectId }: Props) {
             />
           )}
           {!loading && sources && sources.length > 0 && (
-            <ul className="divide-y">
+            <ul className="space-y-2">
               {sources.map((s) => (
-                <li key={s.id} className="py-3 first:pt-0 last:pb-0">
+                <li key={s.id}>
                   <SourceRow
                     projectId={projectId}
                     sourceId={s.id}
