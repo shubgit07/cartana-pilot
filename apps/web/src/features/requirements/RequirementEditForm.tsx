@@ -118,7 +118,7 @@ export function RequirementEditForm({
           onChange={(e) => setDescription(e.target.value)}
           rows={3}
           maxLength={MAX_DESCRIPTION}
-          placeholder="Optional context\u2026"
+          placeholder="Optional context…"
         />
       </div>
 
@@ -135,7 +135,7 @@ export function RequirementEditForm({
           ) : (
             <Save className="h-3.5 w-3.5" aria-hidden="true" />
           )}
-          <span className="ml-1.5">{saving ? "Saving\u2026" : "Save"}</span>
+          <span className="ml-1.5">{saving ? "Saving…" : "Save"}</span>
         </Button>
       </div>
     </form>
