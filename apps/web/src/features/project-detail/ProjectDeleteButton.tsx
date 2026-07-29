@@ -1,11 +1,12 @@
 "use client";
 
 import * as React from "react";
-import { Trash2 } from "lucide-react";
+import { Loader2, Trash2 } from "lucide-react";
 import { ConfirmDialog } from "@/components/common/ConfirmDialog";
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/components/ui/toast";
 import { projectsApi, ApiError } from "@/lib/api";
+import { cn } from "@/lib/cn";
 
 type Props = {
   projectId: string;
@@ -37,10 +38,26 @@ export function ProjectDeleteButton({ projectId, projectName, onDeleted }: Props
 
   return (
     <>
-      <Button variant="outline" size="sm" onClick={() => setOpen(true)}>
-        <Trash2 className="h-3.5 w-3.5" aria-hidden="true" />
-        <span className="ml-1.5">Delete project</span>
+      <Button
+        variant="outline"
+        size="sm"
+        onClick={() => setOpen(true)}
+        disabled={busy}
+        className={cn(
+          "shrink-0 transition-colors duration-200 ease-out-expo",
+          "hover:border-danger/40 hover:bg-danger-soft hover:text-danger-soft-foreground",
+          "focus-visible:ring-danger"
+        )}
+      >
+        {busy ? (
+          <Loader2 className="h-3.5 w-3.5 animate-spin" aria-hidden="true" />
+        ) : (
+          <Trash2 className="h-3.5 w-3.5" aria-hidden="true" />
+        )}
+        <span className="ml-1.5 hidden sm:inline">Delete project</span>
+        <span className="ml-1.5 sm:hidden">Delete</span>
       </Button>
+
       <ConfirmDialog
         open={open}
         onOpenChange={setOpen}
