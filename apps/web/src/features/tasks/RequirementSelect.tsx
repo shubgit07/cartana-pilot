@@ -31,13 +31,14 @@ export function RequirementSelect({
 }: Props) {
   if (requirements.length === 0) {
     return (
-      <p className="text-xs text-muted-foreground">
+      <p className="rounded-md border border-border/70 bg-surface-sunken px-2.5 py-2 text-xs text-muted-foreground">
         No linkable requirements yet. Accept or create a requirement first.
       </p>
     );
   }
+
   return (
-    <div className="space-y-2">
+    <div className="space-y-1.5">
       <Label htmlFor={id}>Linked requirement (optional)</Label>
       <Select
         value={value || NONE}
@@ -51,7 +52,7 @@ export function RequirementSelect({
           <SelectItem value={NONE}>None</SelectItem>
           {requirements.map((r) => (
             <SelectItem key={r.id} value={r.id}>
-              {r.title}
+              <span className="block max-w-[22rem] truncate">{r.title}</span>
             </SelectItem>
           ))}
         </SelectContent>
