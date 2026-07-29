@@ -22,6 +22,10 @@ export function TasksPanel({ projectId }: Props) {
   const [pendingDelete, setPendingDelete] = React.useState<TaskSummary | null>(null);
 
   const linkable = (requirements ?? []).filter((r) => r.state !== "rejected");
+  const linkableOptions = React.useMemo(
+    () => linkable.map((r) => ({ id: r.id, title: r.title })),
+    [linkable]
+  );
 
   async function setState(id: string, state: "accepted" | "rejected") {
     try {
@@ -76,31 +80,37 @@ export function TasksPanel({ projectId }: Props) {
         onRefresh={reload}
       />
 
+      {/* Persistent wrapper so TasksHeader's aria-controls always resolves. */}
       <div id="new-task-card">
         {creating && (
           <NewTaskForm
             projectId={projectId}
             open={creating}
             onOpenChange={setCreating}
-            linkableRequirements={linkable.map((r) => ({ id: r.id, title: r.title }))}
+            linkableRequirements={linkableOptions}
           />
         )}
       </div>
 
       <Card>
-        <CardContent className="space-y-3 pt-6">
+        <CardContent className="pt-5">
           {loading && (
-            <div className="space-y-3" aria-busy="true">
+            <div className="space-y-2" aria-busy="true" aria-label="Loading tasks">
               {Array.from({ length: 3 }).map((_, i) => (
-                <Skeleton key={i} className="h-16 w-full" />
+                <Skeleton key={i} className="h-20 w-full" />
               ))}
             </div>
           )}
+
           {error && (
-            <p role="alert" className="text-sm text-destructive">
+            <p
+              role="alert"
+              className="rounded-lg border border-danger/25 bg-danger-soft px-3 py-2 text-sm text-danger-soft-foreground"
+            >
               {error}
             </p>
           )}
+
           {!loading && tasks && tasks.length === 0 && (
             <EmptyState
               icon="inbox"
@@ -108,13 +118,14 @@ export function TasksPanel({ projectId }: Props) {
               description="Extracted tasks appear after a document is processed, or create one manually."
             />
           )}
+
           {!loading && tasks && tasks.length > 0 && (
-            <ul className="divide-y">
+            <ul className="space-y-2">
               {tasks.map((t) => (
-                <li key={t.id} className="py-4 first:pt-0 last:pb-0">
+                <li key={t.id}>
                   <TaskRow
                     task={t}
-                    linkableRequirements={linkable.map((r) => ({ id: r.id, title: r.title }))}
+                    linkableRequirements={linkableOptions}
                     onAccept={() => setState(t.id, "accepted")}
                     onReject={() => setState(t.id, "rejected")}
                     onSave={(patch) => handleSave(t, patch)}
