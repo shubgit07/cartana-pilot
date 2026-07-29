@@ -26,6 +26,7 @@ const STATE_RAIL: Record<string, string> = {
 
 export function RequirementRow({ requirement: r, onAccept, onReject, onSave, onDelete }: Props) {
   const [editing, setEditing] = React.useState(false);
+  const [saving, setSaving] = React.useState(false);
   const [pending, setPending] = React.useState<"accept" | "reject" | null>(null);
 
   const isDecided = r.state === "accepted" || r.state === "rejected";
@@ -69,11 +70,16 @@ export function RequirementRow({ requirement: r, onAccept, onReject, onSave, onD
             <RequirementEditForm
               initialTitle={r.title}
               initialDescription={r.description}
-              saving={false}
+              saving={saving}
               onCancel={() => setEditing(false)}
               onSave={async (patch) => {
-                await onSave(patch);
-                setEditing(false);
+                setSaving(true);
+                try {
+                  await onSave(patch);
+                  setEditing(false);
+                } finally {
+                  setSaving(false);
+                }
               }}
             />
           ) : (
