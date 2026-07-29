@@ -49,7 +49,7 @@ export function ProjectDetailPage({
         <Card className="border-danger/25 bg-danger-soft">
           <CardHeader className="flex flex-row items-center gap-2 text-sm font-medium text-danger-soft-foreground">
             <AlertTriangle className="h-4 w-4 shrink-0" aria-hidden="true" />
-            Couldn\u2019t load this project
+            Couldn’t load this project
           </CardHeader>
           <CardContent>
             <p role="alert" className="text-sm text-danger-soft-foreground/90">
