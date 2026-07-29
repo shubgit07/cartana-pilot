@@ -138,7 +138,7 @@ export function NewTaskForm({ projectId, open, onOpenChange, linkableRequirement
               ref={titleRef}
               value={title}
               onChange={(e) => setTitle(e.target.value)}
-              placeholder="e.g. Build OTP login flow\u2026"
+              placeholder="e.g. Build OTP login flow…"
               maxLength={MAX_TITLE}
               autoComplete="off"
               spellCheck
@@ -161,7 +161,7 @@ export function NewTaskForm({ projectId, open, onOpenChange, linkableRequirement
               onChange={(e) => setDescription(e.target.value)}
               rows={3}
               maxLength={MAX_DESCRIPTION}
-              placeholder="Optional details\u2026"
+              placeholder="Optional details…"
             />
           </div>
 
@@ -183,7 +183,7 @@ export function NewTaskForm({ projectId, open, onOpenChange, linkableRequirement
             <SubmitButton
               type="submit"
               loading={submitting}
-              loadingLabel="Creating\u2026"
+              loadingLabel="Creating…"
               disabled={!title.trim()}
             >
               Create task
