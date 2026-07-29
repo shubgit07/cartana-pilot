@@ -107,7 +107,7 @@ export function NewProjectForm() {
                 id="projectName"
                 name="projectName"
                 ref={inputRef}
-                placeholder="e.g. Final Year Capstone\u2026"
+                placeholder="e.g. Final Year Capstone…"
                 value={name}
                 onChange={(e) => setName(e.target.value)}
                 required
@@ -137,7 +137,7 @@ export function NewProjectForm() {
               <Textarea
                 id="projectDescription"
                 name="projectDescription"
-                placeholder="Short summary of the project so future-you remembers the context\u2026"
+                placeholder="Short summary of the project so future-you remembers the context…"
                 value={description}
                 onChange={(e) => setDescription(e.target.value)}
                 rows={4}
@@ -159,7 +159,7 @@ export function NewProjectForm() {
               <Button type="button" variant="ghost" asChild>
                 <Link href="/">Cancel</Link>
               </Button>
-              <SubmitButton type="submit" loading={submitting} loadingLabel="Creating\u2026">
+              <SubmitButton type="submit" loading={submitting} loadingLabel="Creating…">
                 Create project
               </SubmitButton>
             </div>
