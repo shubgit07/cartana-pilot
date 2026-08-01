@@ -123,7 +123,7 @@ class AuditRunListResponse(BaseModel):
 
 
 class AuditRunDetailResponse(BaseModel):
-    run: AuditRunDetail
+    run: Optional[AuditRunDetail] = None
 
 
 class AuditRunResponse(BaseModel):

@@ -18,10 +18,6 @@ from typing import Optional, Protocol
 import httpx
 
 from app.config import Settings, get_settings
-from app.providers.extractors.coverage_stub import coverage_stub
-from app.providers.extractors.requirement_extractor import extract_requirements_stub
-from app.providers.extractors.task_extractor import extract_tasks_stub
-from app.providers.prompts.audit import build_coverage_prompt, build_risk_summary_prompt
 
 logger = logging.getLogger(__name__)
 
@@ -173,6 +169,11 @@ def _normalize_status(s: Optional[str]) -> str:
 
 
 # ---- Stub provider ----
+
+from app.providers.extractors.coverage_stub import coverage_stub
+from app.providers.extractors.requirement_extractor import extract_requirements_stub
+from app.providers.extractors.task_extractor import extract_tasks_stub
+from app.providers.prompts.audit import build_coverage_prompt, build_risk_summary_prompt
 
 
 class StubAIProvider:

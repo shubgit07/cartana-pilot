@@ -13,9 +13,12 @@ import { SourceRow } from "./SourceRow";
 import { UploadFileCard } from "./UploadFileCard";
 import { PasteNotesForm } from "./PasteNotesForm";
 
-type Props = { projectId: string };
+type Props = {
+  projectId: string;
+  onSourceCountChange?: (count: number) => void;
+};
 
-export function SourcesPanel({ projectId }: Props) {
+export function SourcesPanel({ projectId, onSourceCountChange }: Props) {
   const { sources, loading, error, reload, remove } = useSources(projectId);
   const { toast } = useToast();
   const [showPaste, setShowPaste] = React.useState(false);
@@ -24,6 +27,13 @@ export function SourcesPanel({ projectId }: Props) {
     id: string;
     name: string;
   } | null>(null);
+
+  React.useEffect(() => {
+    if (sources !== null) {
+      onSourceCountChange?.(sources.length);
+    }
+  }, [sources, onSourceCountChange]);
+
 
   async function handleDelete() {
     if (!pendingDelete) return;
@@ -53,12 +63,13 @@ export function SourcesPanel({ projectId }: Props) {
         busy={busy}
       />
 
-      <UploadFileCard projectId={projectId} busy={busy} onBusyChange={setBusy} />
+      <UploadFileCard projectId={projectId} busy={busy} onBusyChange={setBusy} onUploaded={reload} />
       <div id="paste-notes-card">
         {showPaste && (
-          <PasteNotesForm projectId={projectId} busy={busy} onBusyChange={setBusy} />
+          <PasteNotesForm projectId={projectId} busy={busy} onBusyChange={setBusy} onUploaded={reload} />
         )}
       </div>
+
 
       <Card>
         <CardHeader className="flex flex-row items-center justify-between">

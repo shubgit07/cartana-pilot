@@ -62,8 +62,6 @@ def get_latest_audit(
     user: CurrentUser = Depends(get_current_user),
 ) -> AuditRunDetailResponse:
     run = audit_service.get_latest_audit(db, user.id, project_id)
-    if run is None:
-        raise NotFoundError("No audit run found")
     return AuditRunDetailResponse(run=run)
 
 
@@ -73,12 +71,15 @@ def get_audit_job_status(
     job_id: str,
     user: CurrentUser = Depends(get_current_user),
 ) -> AuditJobStatusResponse:
-    from app.workers.celery_app import celery_app
+    from app.workers.arq_worker import get_job_status
 
-    result = celery_app.AsyncResult(job_id)
-    state = result.state if result else "UNKNOWN"
-    ret = result.result if result and result.successful() else None
-    return AuditJobStatusResponse(jobId=job_id, state=state, result=ret)
+    job_info = get_job_status(job_id)
+    return AuditJobStatusResponse(
+        jobId=job_id,
+        state=job_info.get("state", "UNKNOWN"),
+        result=job_info.get("result"),
+    )
+
 
 
 # ---- Coverage endpoints ----

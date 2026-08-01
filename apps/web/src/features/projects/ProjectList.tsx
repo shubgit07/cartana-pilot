@@ -32,7 +32,7 @@ export function ProjectList() {
             Projects
           </h1>
           <p className="max-w-prose text-sm leading-relaxed text-muted-foreground">
-            Upload your project documents and ask grounded questions over them.
+            Turn specifications into structured requirements, tasks, coverage audits, and grounded AI answers.
             {!loading && count > 0 && (
               <>
                 {" "}
@@ -62,8 +62,8 @@ export function ProjectList() {
 
       {!loading && projects && projects.length === 0 && (
         <EmptyState
-          title="No projects yet"
-          description="Create your first project to start uploading briefs and chatting over them."
+          title="Welcome to Cartana"
+          description="Create your first project to upload specifications, automatically extract requirements and tasks, perform coverage audits, and chat with your AI copilot."
           actions={
             <Button asChild>
               <Link href="/projects/new">Create a project</Link>
@@ -71,6 +71,7 @@ export function ProjectList() {
           }
         />
       )}
+
 
       {!loading && projects && projects.length > 0 && (
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">

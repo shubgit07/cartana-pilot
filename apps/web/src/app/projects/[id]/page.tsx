@@ -1,3 +1,5 @@
+"use client";
+
 import { ProjectDetailPage } from "@/features/project-detail";
 import { SourcesPanel } from "@/features/sources";
 import { RequirementsPanel } from "@/features/requirements";

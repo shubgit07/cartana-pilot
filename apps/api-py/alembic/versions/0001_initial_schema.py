@@ -10,6 +10,8 @@ from alembic import op
 import sqlalchemy as sa
 from pgvector.sqlalchemy import Vector
 
+from sqlalchemy.dialects.postgresql import ENUM as PgEnum
+
 revision = "0001_initial_schema"
 down_revision = None
 branch_labels = None
@@ -19,26 +21,40 @@ depends_on = None
 def upgrade() -> None:
     op.execute("CREATE EXTENSION IF NOT EXISTS vector")
 
-    source_kind = sa.Enum("pdf", "text", name="SourceKind")
-    source_status = sa.Enum("uploaded", "processing", "processed", "failed", name="SourceStatus")
-    requirement_origin = sa.Enum("ai", "user", name="RequirementOrigin")
-    requirement_state = sa.Enum("suggested", "accepted", "rejected", "edited", name="RequirementState")
-    task_origin = sa.Enum("ai", "user", name="TaskOrigin")
-    task_state = sa.Enum("suggested", "accepted", "rejected", "edited", name="TaskState")
-    coverage_status = sa.Enum("covered", "partial", "unclear", "missing", name="CoverageStatus")
-    coverage_origin = sa.Enum("ai_suggested", "user_confirmed", name="CoverageOrigin")
-    audit_severity = sa.Enum("info", "warning", "critical", name="AuditSeverity")
-    audit_finding_kind = sa.Enum(
+    enums = [
+        ('SourceKind', "('pdf', 'text')"),
+        ('SourceStatus', "('uploaded', 'processing', 'processed', 'failed')"),
+        ('RequirementOrigin', "('ai', 'user')"),
+        ('RequirementState', "('suggested', 'accepted', 'rejected', 'edited')"),
+        ('TaskOrigin', "('ai', 'user')"),
+        ('TaskState', "('suggested', 'accepted', 'rejected', 'edited')"),
+        ('CoverageStatus', "('covered', 'partial', 'unclear', 'missing')"),
+        ('CoverageOrigin', "('ai_suggested', 'user_confirmed')"),
+        ('AuditSeverity', "('info', 'warning', 'critical')"),
+        ('AuditFindingKind', "('uncovered_requirement', 'partial_coverage', 'vague_requirement', 'deadline_risk', 'orphan_task', 'other')"),
+    ]
+    for name, vals in enums:
+        op.execute(f"""
+        DO $$ BEGIN
+            CREATE TYPE "{name}" AS ENUM {vals};
+        EXCEPTION
+            WHEN duplicate_object THEN null;
+        END $$;
+        """)
+
+    source_kind = PgEnum("pdf", "text", name="SourceKind", create_type=False)
+    source_status = PgEnum("uploaded", "processing", "processed", "failed", name="SourceStatus", create_type=False)
+    requirement_origin = PgEnum("ai", "user", name="RequirementOrigin", create_type=False)
+    requirement_state = PgEnum("suggested", "accepted", "rejected", "edited", name="RequirementState", create_type=False)
+    task_origin = PgEnum("ai", "user", name="TaskOrigin", create_type=False)
+    task_state = PgEnum("suggested", "accepted", "rejected", "edited", name="TaskState", create_type=False)
+    coverage_status = PgEnum("covered", "partial", "unclear", "missing", name="CoverageStatus", create_type=False)
+    coverage_origin = PgEnum("ai_suggested", "user_confirmed", name="CoverageOrigin", create_type=False)
+    audit_severity = PgEnum("info", "warning", "critical", name="AuditSeverity", create_type=False)
+    audit_finding_kind = PgEnum(
         "uncovered_requirement", "partial_coverage", "vague_requirement",
-        "deadline_risk", "orphan_task", "other", name="AuditFindingKind",
+        "deadline_risk", "orphan_task", "other", name="AuditFindingKind", create_type=False,
     )
-    bind = op.get_bind()
-    for enum_type in (
-        source_kind, source_status, requirement_origin, requirement_state,
-        task_origin, task_state, coverage_status, coverage_origin,
-        audit_severity, audit_finding_kind,
-    ):
-        enum_type.create(bind, checkfirst=True)
 
     op.create_table(
         "User",

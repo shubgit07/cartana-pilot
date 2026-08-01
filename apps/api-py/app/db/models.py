@@ -90,6 +90,11 @@ class AuditFindingKind(str, enum.Enum):
     OTHER = "other"
 
 
+def pgenum(enum_cls: type[enum.Enum], name: str) -> Enum:
+    """Production-ready PostgreSQL Enum mapper ensuring lower-case wire values."""
+    return Enum(enum_cls, name=name, values_callable=lambda obj: [item.value for item in obj])
+
+
 class TimestampMixin:
     created_at: Mapped[datetime] = mapped_column(
         "createdAt", DateTime(timezone=False), server_default=text("CURRENT_TIMESTAMP"), nullable=False
@@ -142,8 +147,8 @@ class Source(TimestampMixin, Base):
     project_id: Mapped[str] = mapped_column("projectId", ForeignKey("Project.id", ondelete="CASCADE", onupdate="CASCADE"), nullable=False)
     user_id: Mapped[str] = mapped_column("userId", ForeignKey("User.id", ondelete="CASCADE", onupdate="CASCADE"), nullable=False)
     filename: Mapped[str] = mapped_column(String, nullable=False)
-    kind: Mapped[SourceKind] = mapped_column(Enum(SourceKind, name="SourceKind"), nullable=False)
-    status: Mapped[SourceStatus] = mapped_column(Enum(SourceStatus, name="SourceStatus"), default=SourceStatus.UPLOADED, nullable=False)
+    kind: Mapped[SourceKind] = mapped_column(pgenum(SourceKind, "SourceKind"), nullable=False)
+    status: Mapped[SourceStatus] = mapped_column(pgenum(SourceStatus, "SourceStatus"), default=SourceStatus.UPLOADED, nullable=False)
     storage_key: Mapped[str] = mapped_column("storageKey", String, nullable=False)
     mime_type: Mapped[str | None] = mapped_column("mimeType", String)
     size_bytes: Mapped[int | None] = mapped_column("sizeBytes", Integer)
@@ -182,8 +187,8 @@ class Requirement(TimestampMixin, Base):
     user_id: Mapped[str] = mapped_column("userId", ForeignKey("User.id", ondelete="CASCADE", onupdate="CASCADE"), nullable=False)
     title: Mapped[str] = mapped_column(String, nullable=False)
     description: Mapped[str | None] = mapped_column(Text)
-    origin: Mapped[RequirementOrigin] = mapped_column(Enum(RequirementOrigin, name="RequirementOrigin"), default=RequirementOrigin.AI, nullable=False)
-    state: Mapped[RequirementState] = mapped_column(Enum(RequirementState, name="RequirementState"), default=RequirementState.SUGGESTED, nullable=False)
+    origin: Mapped[RequirementOrigin] = mapped_column(pgenum(RequirementOrigin, "RequirementOrigin"), default=RequirementOrigin.AI, nullable=False)
+    state: Mapped[RequirementState] = mapped_column(pgenum(RequirementState, "RequirementState"), default=RequirementState.SUGGESTED, nullable=False)
     dedupe_key: Mapped[str | None] = mapped_column("dedupeKey", String)
     updated_at: Mapped[datetime] = mapped_column("updatedAt", DateTime(), default=func.now(), onupdate=func.now(), nullable=False)
 
@@ -219,8 +224,8 @@ class Task(TimestampMixin, Base):
     requirement_id: Mapped[str | None] = mapped_column("requirementId", ForeignKey("Requirement.id", ondelete="SET NULL", onupdate="CASCADE"))
     title: Mapped[str] = mapped_column(String, nullable=False)
     description: Mapped[str | None] = mapped_column(Text)
-    origin: Mapped[TaskOrigin] = mapped_column(Enum(TaskOrigin, name="TaskOrigin"), default=TaskOrigin.AI, nullable=False)
-    state: Mapped[TaskState] = mapped_column(Enum(TaskState, name="TaskState"), default=TaskState.SUGGESTED, nullable=False)
+    origin: Mapped[TaskOrigin] = mapped_column(pgenum(TaskOrigin, "TaskOrigin"), default=TaskOrigin.AI, nullable=False)
+    state: Mapped[TaskState] = mapped_column(pgenum(TaskState, "TaskState"), default=TaskState.SUGGESTED, nullable=False)
     dedupe_key: Mapped[str | None] = mapped_column("dedupeKey", String)
     updated_at: Mapped[datetime] = mapped_column("updatedAt", DateTime(), default=func.now(), onupdate=func.now(), nullable=False)
 
@@ -255,8 +260,8 @@ class CoverageLink(TimestampMixin, Base):
     user_id: Mapped[str] = mapped_column("userId", ForeignKey("User.id", ondelete="CASCADE", onupdate="CASCADE"), nullable=False)
     requirement_id: Mapped[str] = mapped_column("requirementId", ForeignKey("Requirement.id", ondelete="CASCADE", onupdate="CASCADE"), nullable=False)
     task_id: Mapped[str] = mapped_column("taskId", ForeignKey("Task.id", ondelete="CASCADE", onupdate="CASCADE"), nullable=False)
-    status: Mapped[CoverageStatus] = mapped_column(Enum(CoverageStatus, name="CoverageStatus"), nullable=False)
-    origin: Mapped[CoverageOrigin] = mapped_column(Enum(CoverageOrigin, name="CoverageOrigin"), nullable=False)
+    status: Mapped[CoverageStatus] = mapped_column(pgenum(CoverageStatus, "CoverageStatus"), nullable=False)
+    origin: Mapped[CoverageOrigin] = mapped_column(pgenum(CoverageOrigin, "CoverageOrigin"), nullable=False)
     rationale: Mapped[str | None] = mapped_column(Text)
     updated_at: Mapped[datetime] = mapped_column("updatedAt", DateTime(), default=func.now(), onupdate=func.now(), nullable=False)
 
@@ -287,8 +292,8 @@ class AuditFinding(TimestampMixin, Base):
     id: Mapped[str] = mapped_column(String, primary_key=True, default=new_id)
     run_id: Mapped[str] = mapped_column("runId", ForeignKey("AuditRun.id", ondelete="CASCADE", onupdate="CASCADE"), nullable=False)
     project_id: Mapped[str] = mapped_column("projectId", String, nullable=False)
-    kind: Mapped[AuditFindingKind] = mapped_column(Enum(AuditFindingKind, name="AuditFindingKind"), nullable=False)
-    severity: Mapped[AuditSeverity] = mapped_column(Enum(AuditSeverity, name="AuditSeverity"), nullable=False)
+    kind: Mapped[AuditFindingKind] = mapped_column(pgenum(AuditFindingKind, "AuditFindingKind"), nullable=False)
+    severity: Mapped[AuditSeverity] = mapped_column(pgenum(AuditSeverity, "AuditSeverity"), nullable=False)
     message: Mapped[str] = mapped_column(Text, nullable=False)
     requirement_id: Mapped[str | None] = mapped_column("requirementId", ForeignKey("Requirement.id", ondelete="SET NULL", onupdate="CASCADE"))
     task_id: Mapped[str | None] = mapped_column("taskId", ForeignKey("Task.id", ondelete="SET NULL", onupdate="CASCADE"))

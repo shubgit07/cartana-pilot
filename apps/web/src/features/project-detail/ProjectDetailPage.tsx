@@ -1,13 +1,15 @@
 "use client";
 
+import * as React from "react";
 import Link from "next/link";
+
 import { AlertTriangle, ArrowLeft } from "lucide-react";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { OverviewTab, OverviewTabSkeleton } from "./OverviewTab";
 import { ProjectHeader } from "./ProjectHeader";
 import { ProjectTabs, type ProjectTabProps } from "./ProjectTabs";
-import { useProject } from "@/hooks/api";
+import { useProject, useSources } from "@/hooks/api";
 import { useQueryState } from "@/hooks/common";
 import { NAVIGATION_TABS, type NavigationTab } from "@/lib/constants";
 import { useRouter } from "next/navigation";
@@ -22,7 +24,14 @@ export function ProjectDetailPage({
   const projectId = params?.id ?? "";
   const router = useRouter();
   const { project, loading, error, reload } = useProject(projectId);
+  const { sources, reload: reloadSources } = useSources(projectId);
   const [tab, setTab] = useQueryState<NavigationTab>("tab", NAVIGATION_TABS, "overview");
+
+  const sourceCount = sources !== null ? sources.length : (project?.sources.length ?? 0);
+
+  const handleReloadAll = React.useCallback(async () => {
+    await Promise.all([reload(), reloadSources()]);
+  }, [reload, reloadSources]);
 
   return (
     <div className="animate-fade-in space-y-6">
@@ -65,14 +74,14 @@ export function ProjectDetailPage({
           <ProjectTabs
             value={tab}
             onValueChange={setTab}
-            sourceCount={project.sources.length}
+            sourceCount={sourceCount}
             panels={{
               overview: (
                 <OverviewTab
-                  sourceCount={project.sources.length}
+                  sourceCount={sourceCount}
                   onUploadClick={() => setTab("sources")}
                   onChatClick={() => setTab("chat")}
-                  reload={reload}
+                  reload={handleReloadAll}
                 />
               ),
               sources: panels.sources,
@@ -82,6 +91,7 @@ export function ProjectDetailPage({
               audit: panels.audit,
             }}
           />
+
 
           <p className="flex items-center gap-1.5 text-2xs text-muted-foreground">
             <span className="eyebrow">Project ID</span>

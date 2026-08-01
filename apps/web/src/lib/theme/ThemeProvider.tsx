@@ -30,8 +30,9 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
   const [theme, setThemeState] = React.useState<Theme>(() => {
     const stored = readString(STORAGE_KEY, "");
     if (stored === "light" || stored === "dark") return stored;
-    return prefersDark ? "dark" : "light";
+    return "dark";
   });
+
 
   React.useEffect(() => {
     applyTheme(theme);

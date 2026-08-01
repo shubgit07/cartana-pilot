@@ -69,4 +69,24 @@ def extract_requirements_stub(input: AIExtractRequirementsInput) -> list[Extract
                 chunkIds=[chunk_id],
             ))
 
+    # Fallback: if no keyword matched, take any clear sentences from chunks
+    if not out:
+        for chunk in input.chunks:
+            text = str(chunk.get("text", ""))
+            chunk_id = str(chunk.get("id", ""))
+            for line in text.split("\n"):
+                s = line.strip()
+                if len(s) >= 15 and len(s) <= 250:
+                    title = _make_title(s)
+                    if title and title.lower() not in seen:
+                        seen.add(title.lower())
+                        out.append(ExtractedRequirement(
+                            title=title,
+                            description=s,
+                            chunkIds=[chunk_id],
+                        ))
+                    if len(out) >= 15:
+                        break
+
     return out[:40]
+

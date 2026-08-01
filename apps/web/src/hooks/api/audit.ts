@@ -44,6 +44,15 @@ export function useRunAudit(projectId: string) {
   const [error, setError] = React.useState<string | null>(null);
   const [jobId, setJobId] = React.useState<string | null>(null);
   const [done, setDone] = React.useState(false);
+  const timerRef = React.useRef<number | null>(null);
+
+  const stop = React.useCallback(() => {
+    setRunning(false);
+    if (timerRef.current !== null) {
+      window.clearTimeout(timerRef.current);
+      timerRef.current = null;
+    }
+  }, []);
 
   const run = React.useCallback(async () => {
     setRunning(true);
@@ -54,35 +63,43 @@ export function useRunAudit(projectId: string) {
       const result = await auditApi.runAudit(projectId);
       setJobId(result.jobId);
 
-      // Poll for completion
       const poll = async () => {
         try {
           const status = await auditApi.jobStatus(projectId, result.jobId);
-          if (status.state === "completed") {
+          const st = (status.state || "").toLowerCase();
+          if (st === "completed" || st === "success") {
             setRunning(false);
             setDone(true);
             return;
           }
-          if (status.state === "failed") {
+          if (st === "failed" || st === "failure") {
             setRunning(false);
             setError("Audit job failed. Check the API logs.");
             return;
           }
-          // Still waiting or active — keep polling
-          window.setTimeout(poll, 2000);
+          timerRef.current = window.setTimeout(poll, 1500);
         } catch {
-          window.setTimeout(poll, 3000);
+          timerRef.current = window.setTimeout(poll, 2500);
         }
       };
-      window.setTimeout(poll, 1500);
+      timerRef.current = window.setTimeout(poll, 1000);
     } catch (e: unknown) {
       setRunning(false);
       setError(messageOf(e) ?? "Failed to start audit");
     }
   }, [projectId]);
 
-  return { run, running, error, jobId, done, setDone };
+  React.useEffect(() => {
+    return () => {
+      if (timerRef.current !== null) {
+        window.clearTimeout(timerRef.current);
+      }
+    };
+  }, []);
+
+  return { run, stop, running, error, jobId, done, setDone };
 }
+
 
 export function useCoverageLinks(projectId: string) {
   const [links, setLinks] = React.useState<CoverageLinkSummary[] | null>(null);

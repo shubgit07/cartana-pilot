@@ -11,6 +11,7 @@ export function ThemeToggle({ className }: { className?: string }) {
   return (
     <button
       type="button"
+      suppressHydrationWarning
       onClick={() => setTheme(next)}
       aria-label={`Switch to ${next} theme`}
       title={`Switch to ${next} theme`}
@@ -19,6 +20,7 @@ export function ThemeToggle({ className }: { className?: string }) {
         className
       )}
     >
+
       <Sun
         className="h-4 w-4 dark:hidden"
         aria-hidden="true"

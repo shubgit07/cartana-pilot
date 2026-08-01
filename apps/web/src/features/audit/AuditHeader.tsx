@@ -7,9 +7,10 @@ type Props = {
   running: boolean;
   hasResults: boolean;
   onRun: () => void;
+  onStop?: () => void;
 };
 
-export function AuditHeader({ running, hasResults, onRun }: Props) {
+export function AuditHeader({ running, hasResults, onRun, onStop }: Props) {
   return (
     <header className="flex flex-wrap items-start justify-between gap-4">
       <div className="flex min-w-0 items-start gap-3">
@@ -28,19 +29,27 @@ export function AuditHeader({ running, hasResults, onRun }: Props) {
         </div>
       </div>
 
-      <Button onClick={onRun} disabled={running} className="shrink-0">
-        {running ? (
-          <>
-            <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />
-            Running…
-          </>
-        ) : (
-          <>
-            <Play className="h-4 w-4" aria-hidden="true" />
-            {hasResults ? "Re-run audit" : "Run audit"}
-          </>
+      <div className="flex items-center gap-2 shrink-0">
+        {running && onStop && (
+          <Button onClick={onStop} variant="outline" size="sm">
+            Stop Audit
+          </Button>
         )}
-      </Button>
+        <Button onClick={onRun} disabled={running}>
+          {running ? (
+            <>
+              <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />
+              Running…
+            </>
+          ) : (
+            <>
+              <Play className="h-4 w-4" aria-hidden="true" />
+              {hasResults ? "Re-run audit" : "Run audit"}
+            </>
+          )}
+        </Button>
+      </div>
     </header>
   );
 }
+

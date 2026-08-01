@@ -10,9 +10,10 @@ type Props = {
   projectId: string;
   busy: boolean;
   onBusyChange: (next: boolean) => void;
+  onUploaded?: () => void;
 };
 
-export function UploadFileCard({ projectId, busy, onBusyChange }: Props) {
+export function UploadFileCard({ projectId, busy, onBusyChange, onUploaded }: Props) {
   const { uploadFile } = useSources(projectId);
   const { toast } = useToast();
 
@@ -20,7 +21,9 @@ export function UploadFileCard({ projectId, busy, onBusyChange }: Props) {
     onBusyChange(true);
     try {
       await uploadFile(file);
+      onUploaded?.();
       toast({ title: "Upload started", description: `${file.name} is processing…` });
+
     } catch (e: unknown) {
       toast({
         title: "Upload failed",

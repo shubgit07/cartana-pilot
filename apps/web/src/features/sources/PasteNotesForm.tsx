@@ -18,9 +18,10 @@ type Props = {
   projectId: string;
   busy: boolean;
   onBusyChange: (next: boolean) => void;
+  onUploaded?: () => void;
 };
 
-export function PasteNotesForm({ projectId, busy, onBusyChange }: Props) {
+export function PasteNotesForm({ projectId, busy, onBusyChange, onUploaded }: Props) {
   const [open, setOpen] = React.useState(false);
   const [filename, setFilename] = React.useState(DEFAULT_FILENAME);
   const [content, setContent] = React.useState("");
@@ -40,9 +41,11 @@ export function PasteNotesForm({ projectId, busy, onBusyChange }: Props) {
     onBusyChange(true);
     try {
       await createFromText(cleanFilename, cleanContent);
+      onUploaded?.();
       setContent("");
       setFilename(DEFAULT_FILENAME);
       setOpen(false);
+
       toast({ title: "Source added", description: `${cleanFilename} is processing…` });
     } catch (err: unknown) {
       toast({

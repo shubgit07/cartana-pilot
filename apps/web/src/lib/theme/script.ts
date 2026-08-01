@@ -10,7 +10,8 @@ export const themeScript = `
     var prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
     var resolved = stored === 'light' || stored === 'dark'
       ? stored
-      : (prefersDark ? 'dark' : 'light');
+      : 'dark';
+
     var root = document.documentElement;
     if (resolved === 'dark') root.classList.add('dark');
     else root.classList.remove('dark');

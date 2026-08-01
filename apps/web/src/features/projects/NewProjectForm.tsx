@@ -60,7 +60,9 @@ export function NewProjectForm() {
   const showDescCount = description.length >= MAX_DESCRIPTION * COUNTER_THRESHOLD;
 
   return (
-    <div className="mx-auto max-w-xl animate-fade-in space-y-6">
+    <div className="mx-auto max-w-3xl animate-fade-in space-y-6">
+
+
       <nav>
         <Link
           href="/"

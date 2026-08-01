@@ -61,8 +61,9 @@ export function SourceRow({
             <span className="uppercase tracking-wide">{kind}</span>
             <span aria-hidden="true">·</span>
             <span>
-              {chunkCount} {chunkCount === 1 ? "chunk" : "chunks"}
+              {displayChunks} {displayChunks === 1 ? "chunk" : "chunks"}
             </span>
+
             <SourceStatusBadge status={displayStatus} />
             {displayStatus === "processing" && (
               <span>

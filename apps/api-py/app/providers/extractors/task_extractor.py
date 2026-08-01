@@ -91,4 +91,26 @@ def extract_tasks_stub(input: AIExtractTasksInput) -> list[ExtractedTask]:
                 linkedRequirementTitle=linked,
             ))
 
+    # Fallback: if no verb matched, generate tasks from lines/sentences
+    if not out:
+        for chunk in input.chunks:
+            text = str(chunk.get("text", ""))
+            chunk_id = str(chunk.get("id", ""))
+            for line in text.split("\n"):
+                s = line.strip()
+                if len(s) >= 15 and len(s) <= 200:
+                    title = "Implement " + s[:100]
+                    if title.lower() not in seen:
+                        seen.add(title.lower())
+                        linked = _best_requirement_match(title, input.requirements)
+                        out.append(ExtractedTask(
+                            title=title,
+                            description=s,
+                            chunkIds=[chunk_id],
+                            linkedRequirementTitle=linked,
+                        ))
+                    if len(out) >= 15:
+                        break
+
     return out[:60]
+

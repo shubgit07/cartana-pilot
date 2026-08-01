@@ -14,9 +14,15 @@ type Props = { projectId: string };
 
 export function AuditPanel({ projectId }: Props) {
   const { run, loading, reload } = useLatestAudit(projectId);
-  const { run: triggerRun, running, error: runError } = useRunAudit(projectId);
+  const { run: triggerRun, stop: stopRun, running, done, error: runError } = useRunAudit(projectId);
   const { toast } = useToast();
   const hasResults = !!run;
+
+  React.useEffect(() => {
+    if (done) {
+      reload();
+    }
+  }, [done, reload]);
 
   React.useEffect(() => {
     if (runError) {
@@ -30,13 +36,12 @@ export function AuditPanel({ projectId }: Props) {
 
   async function handleRun() {
     await triggerRun();
-    // Wait a moment for the job to complete, then reload
-    window.setTimeout(() => reload(), 500);
   }
 
   return (
     <section className="mx-auto w-full max-w-4xl space-y-6 pb-10" aria-label="Audit">
-      <AuditHeader running={running} hasResults={hasResults} onRun={handleRun} />
+      <AuditHeader running={running} hasResults={hasResults} onRun={handleRun} onStop={stopRun} />
+
 
       {loading && (
         <div className="space-y-4" aria-busy="true" aria-label="Loading audit results">

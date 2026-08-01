@@ -1,5 +1,5 @@
 import type { Metadata, Viewport } from "next";
-import { Inter, JetBrains_Mono, Source_Serif_4 } from "next/font/google";
+import { Inter, JetBrains_Mono, Plus_Jakarta_Sans } from "next/font/google";
 import "./globals.css";
 import { AppShell } from "@/components/layout/AppShell";
 import { ToastProvider } from "@/components/ui/toast";
@@ -13,12 +13,13 @@ const fontSans = Inter({
   variable: "--font-sans",
 });
 
-/** Display — warm editorial serif for hero and empty-state headings. */
-const fontSerif = Source_Serif_4({
+/** Display — modern geometric sans-serif for hero and headings. */
+const fontSerif = Plus_Jakarta_Sans({
   subsets: ["latin"],
   display: "swap",
   variable: "--font-serif",
 });
+
 
 /** Code, identifiers, and tabular figures. */
 const fontMono = JetBrains_Mono({

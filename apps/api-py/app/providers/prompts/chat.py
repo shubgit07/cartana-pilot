@@ -4,7 +4,10 @@ Port of ``apps/api/src/prompts/chat.ts``. Kept separate from business logic.
 """
 from __future__ import annotations
 
-from app.providers.ai_provider import AIChatInput
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from app.providers.ai_provider import AIChatInput
 
 
 def build_chat_messages(input: AIChatInput) -> list[dict[str, str]]:

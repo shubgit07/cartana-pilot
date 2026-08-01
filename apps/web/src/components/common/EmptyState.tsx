@@ -40,8 +40,8 @@ export function EmptyState({
     <div
       role={icon === "alert" ? "alert" : undefined}
       className={cn(
-        "relative isolate mx-auto flex max-w-md flex-col items-center gap-4 overflow-hidden",
-        "rounded-xl border border-dashed border-border bg-card px-6 py-12 text-center",
+        "relative isolate mx-auto flex max-w-2xl flex-col items-center gap-5 overflow-hidden",
+        "rounded-xl border border-dashed border-border bg-card px-10 py-16 text-center",
         "animate-fade-in",
         className
       )}
@@ -66,13 +66,15 @@ export function EmptyState({
       )}
 
       <div className="space-y-1.5">
-        <h2 className="font-serif text-lg font-semibold tracking-tight text-foreground">{title}</h2>
+        <h2 className="font-serif text-xl font-semibold tracking-tight text-foreground">{title}</h2>
         {description && (
-          <p className="mx-auto max-w-sm text-sm leading-relaxed text-muted-foreground">
+          <p className="mx-auto max-w-xl text-base leading-relaxed text-muted-foreground">
             {description}
           </p>
         )}
       </div>
+
+
 
       {actions && (
         <div className="flex flex-wrap items-center justify-center gap-2">{actions}</div>

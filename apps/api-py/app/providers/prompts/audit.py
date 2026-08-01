@@ -6,7 +6,10 @@ tasks cover a requirement, returning structured JSON.
 """
 from __future__ import annotations
 
-from app.providers.ai_provider import AIAuditCoverageInput, AIRiskSummaryInput
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from app.providers.ai_provider import AIAuditCoverageInput, AIRiskSummaryInput
 
 
 def build_coverage_prompt(input: AIAuditCoverageInput) -> tuple[str, str]:
