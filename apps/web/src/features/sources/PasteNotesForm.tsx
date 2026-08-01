@@ -1,6 +1,7 @@
 "use client";
 
 import * as React from "react";
+import { ClipboardPaste } from "lucide-react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -62,20 +63,31 @@ export function PasteNotesForm({ projectId, busy, onBusyChange, onUploaded }: Pr
   if (!open) {
     return (
       <Card>
-        <CardHeader>
-          <CardTitle>Paste notes</CardTitle>
-          <CardDescription>
+        <CardHeader className="gap-1.5">
+          <div className="flex items-center gap-2">
+            <span
+              aria-hidden="true"
+              className="inline-flex size-7 items-center justify-center rounded-md border border-primary/20 bg-primary-soft text-primary-soft-foreground"
+            >
+              <ClipboardPaste className="h-4 w-4" />
+            </span>
+            <span className="eyebrow">Paste</span>
+          </div>
+          <CardTitle className="text-base">Paste notes</CardTitle>
+          <CardDescription className="leading-relaxed">
             Already have text in a doc? Paste it in to skip uploading a file.
           </CardDescription>
         </CardHeader>
         <CardContent>
           <Button
             type="button"
-            variant="outline"
+            variant="soft"
+            size="sm"
             onClick={() => setOpen(true)}
             disabled={busy}
           >
-            Open paste notes
+            <ClipboardPaste className="h-3.5 w-3.5" aria-hidden="true" />
+            <span className="ml-1.5">Open paste notes</span>
           </Button>
         </CardContent>
       </Card>
@@ -84,15 +96,26 @@ export function PasteNotesForm({ projectId, busy, onBusyChange, onUploaded }: Pr
 
   return (
     <Card>
-      <CardHeader>
-        <CardTitle>Paste notes</CardTitle>
-        <CardDescription>Give it a name and paste the content.</CardDescription>
+      <CardHeader className="gap-1.5">
+        <div className="flex items-center gap-2">
+          <span
+            aria-hidden="true"
+            className="inline-flex size-7 items-center justify-center rounded-md border border-primary/20 bg-primary-soft text-primary-soft-foreground"
+          >
+            <ClipboardPaste className="h-4 w-4" />
+          </span>
+          <span className="eyebrow">Paste</span>
+        </div>
+        <CardTitle className="text-base">Paste notes</CardTitle>
+        <CardDescription className="leading-relaxed">
+          Give it a name and paste the content.
+        </CardDescription>
       </CardHeader>
       <CardContent>
         <form onSubmit={handleSubmit} className="space-y-3" noValidate>
-          <div className="space-y-2">
+          <div className="space-y-1.5">
             <Label htmlFor="paste-filename">
-              Filename <span className="text-destructive" aria-hidden="true">*</span>
+              Filename <span className="text-danger" aria-hidden="true">*</span>
             </Label>
             <Input
               id="paste-filename"
@@ -104,12 +127,18 @@ export function PasteNotesForm({ projectId, busy, onBusyChange, onUploaded }: Pr
               onChange={(e) => setFilename(e.target.value)}
               required
               maxLength={200}
+              className="font-mono"
             />
           </div>
-          <div className="space-y-2">
-            <Label htmlFor="paste-content">
-              Content <span className="text-destructive" aria-hidden="true">*</span>
-            </Label>
+          <div className="space-y-1.5">
+            <div className="flex items-baseline justify-between gap-2">
+              <Label htmlFor="paste-content">
+                Content <span className="text-danger" aria-hidden="true">*</span>
+              </Label>
+              <span className="text-2xs text-muted-foreground tabular">
+                {content.length}/200,000
+              </span>
+            </div>
             <Textarea
               id="paste-content"
               name="pasteContent"
@@ -120,9 +149,8 @@ export function PasteNotesForm({ projectId, busy, onBusyChange, onUploaded }: Pr
               placeholder="Paste a brief, meeting notes, requirements document…"
               required
             />
-            <p className="text-xs text-muted-foreground tabular">{content.length}/200,000</p>
           </div>
-          <div className="flex justify-end gap-2 pt-1">
+          <div className="flex items-center justify-end gap-2 border-t border-border/70 pt-3">
             <Button
               type="button"
               variant="ghost"
