@@ -1,45 +1,76 @@
-# Dependencies
+# ---- Dependencies ----
 node_modules/
+.venv/
+__pypackages__/
+*.egg-info/
+.eggs/
+.Python
 
-# Build outputs
+# ---- Build outputs ----
 .next/
 dist/
 build/
+out/
 coverage/
 *.tsbuildinfo
-
-# Turbo
 .turbo/
 
-# Logs
-*.log
+# ---- Python caches & tooling ----
+__pycache__/
+*.py[cod]
+*.pyc
+*.pyo
+*.pyd
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+.tox/
+nox/
+.htmlcov/
+.coverage
+.coverage.*
+hypothesis/
 
-# Environment (secrets)
+# ---- Logs ----
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+# ---- Environment (secrets) ----
 .env
 .env.local
 .env.*.local
 
-# IDEs
+# ---- IDEs / OS ----
 .vscode/
 .idea/
-
-# Local data
-data/
-storage/
-
-# Prisma
-apps/api/prisma/migrations/dev.db*
-
-# Vercel
-.vercel/
-
-# Docker
-.docker-compose.override.yml
-
-# OS
 .DS_Store
 Thumbs.db
 
-# Certs
+# ---- Local data ----
+data/
+storage/
+
+# ---- Vercel / Docker ----
+.vercel/
+.docker-compose.override.yml
+
+# ---- Certs ----
 *.pem
 *.key
+
+# ---- Benchmark reports (generated) ----
+apps/api-py/benchmark/reports/
+
+# ---- Documentation - keep only README.md and AGENTS.md.
+# Internal planning/roadmap docs (PROGRESS.md, docs/, B1/B2 plans) stay local.
+# Exception: benchmark fixture specs are committed data, not documentation.
+*.md
+!README.md
+!AGENTS.md
+!apps/api-py/benchmark/fixtures/*.md
+
+# ---- Prisma (legacy) ----
+apps/api/prisma/migrations/dev.db*
