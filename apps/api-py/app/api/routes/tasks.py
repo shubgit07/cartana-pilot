@@ -12,12 +12,16 @@ from app.api.deps import CurrentUser, get_current_user
 from app.api.schemas.task import (
     CreateTask,
     TaskDetailResponse,
+    TaskGenerateResponse,
+    TaskGenerateStatusResponse,
     TaskListResponse,
     TaskResponse,
     UpdateTask,
 )
 from app.api.services import task_service
+from app.core.errors import NotFoundError
 from app.db.session import get_db
+from app.workers.tasks.ingest import enqueue_task_generation
 
 router = APIRouter(tags=["tasks"])
 
@@ -39,6 +43,37 @@ def create_task(
     user: CurrentUser = Depends(get_current_user),
 ) -> TaskResponse:
     return TaskResponse(task=task_service.create_task(db, user.id, project_id, payload))
+
+
+@router.post("/generate", response_model=TaskGenerateResponse)
+def generate_tasks(
+    project_id: str,
+    db: Session = Depends(get_db),
+    user: CurrentUser = Depends(get_current_user),
+) -> TaskGenerateResponse:
+    from app.api.services.project_service import get_owned_project
+    get_owned_project(db, user.id, project_id)
+
+    job_id = enqueue_task_generation(project_id, user.id)
+    if job_id is None:
+        raise NotFoundError("Could not queue task generation — broker may be unavailable")
+    return TaskGenerateResponse(jobId=job_id, status="queued")
+
+
+@router.get("/generate/{job_id}/status", response_model=TaskGenerateStatusResponse)
+def get_task_generation_status(
+    project_id: str,
+    job_id: str,
+    user: CurrentUser = Depends(get_current_user),
+) -> TaskGenerateStatusResponse:
+    from app.workers.arq_worker import get_job_status
+
+    job_info = get_job_status(job_id)
+    return TaskGenerateStatusResponse(
+        jobId=job_id,
+        state=job_info.get("state", "UNKNOWN"),
+        result=job_info.get("result"),
+    )
 
 
 @router.get("/{task_id}", response_model=TaskDetailResponse)

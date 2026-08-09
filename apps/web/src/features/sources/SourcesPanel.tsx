@@ -13,6 +13,7 @@ import { SourcesHeader } from "./SourcesHeader";
 import { SourceRow } from "./SourceRow";
 import { UploadFileCard } from "./UploadFileCard";
 import { PasteNotesForm } from "./PasteNotesForm";
+import { PasteDiffForm } from "./PasteDiffForm";
 
 type Props = {
   projectId: string;
@@ -58,13 +59,16 @@ export function SourcesPanel({ projectId, onSourceCountChange }: Props) {
   return (
     <div className="space-y-6">
       <SourcesHeader
-        action="both"
         showPaste={showPaste}
         onShowPasteChange={setShowPaste}
         busy={busy}
       />
 
-      <UploadFileCard projectId={projectId} busy={busy} onBusyChange={setBusy} onUploaded={reload} />
+      <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+        <UploadFileCard projectId={projectId} busy={busy} onBusyChange={setBusy} onUploaded={reload} />
+        <PasteDiffForm projectId={projectId} busy={busy} onBusyChange={setBusy} onUploaded={reload} />
+      </div>
+
       <div id="paste-notes-card">
         {showPaste && (
           <PasteNotesForm projectId={projectId} busy={busy} onBusyChange={setBusy} onUploaded={reload} />

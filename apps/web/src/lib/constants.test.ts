@@ -9,11 +9,12 @@ describe("NAVIGATION_TABS", () => {
       "requirements",
       "tasks",
       "chat",
+      "audit",
     ]);
   });
 
   it("is a readonly tuple (as const)", () => {
-    expect(NAVIGATION_TABS.length).toBe(5);
+    expect(NAVIGATION_TABS.length).toBe(6);
     expect(NAVIGATION_TABS[0]).toBe("overview");
   });
 });

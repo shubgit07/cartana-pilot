@@ -1,0 +1,313 @@
+diff --git a/app/routes/auth.py b/app/routes/auth.py
+new file mode 100644
+index 0000000..1111111
+--- /dev/null
++++ b/app/routes/auth.py
+@@ -0,0 +1,18 @@
++from fastapi import APIRouter, HTTPException
++from app.core.security import hash_password, verify_password
++from app.services.session import create_session_token, revoke_session_token
++
++router = APIRouter(prefix="/auth", tags=["auth"])
++
++
++@router.post("/register")
++def register(email: str, password: str):
++    if user_exists(email):
++        raise HTTPException(400, "Email already registered")
++    user = create_user(email, hash_password(password))
++    return {"user_id": user.id}
++
++
++@router.post("/login")
++def login(email: str, password: str):
++    user = find_user_by_email(email)
++    if not user or not verify_password(password, user.password_hash):
++        raise HTTPException(401, "Invalid credentials")
++    token = create_session_token(user.id)
++    return {"session_token": token}
++
++
++@router.post("/logout")
++def logout(token: str):
++    revoke_session_token(token)
++    return {"status": "ok"}
+diff --git a/app/core/auth.py b/app/core/auth.py
+new file mode 100644
+index 0000000..c0c0c0c
+--- /dev/null
++++ b/app/core/auth.py
+@@ -0,0 +1,10 @@
++from fastapi import Header, HTTPException
++
++
++def require_user(authorization: str = Header(default="")):
++    if not authorization.startswith("Bearer "):
++        raise HTTPException(401, "Authentication required")
++    token = authorization[len("Bearer "):]
++    if not token:
++        raise HTTPException(401, "Authentication required")
++    return {"user_id": token}
++diff --git a/app/routes/tasks.py b/app/routes/tasks.py
+new file mode 100644
+index 0000000..2222222
+--- /dev/null
++++ b/app/routes/tasks.py
+@@ -0,0 +1,30 @@
++from fastapi import APIRouter, Depends, HTTPException
++from app.services.tasks import TaskService
++from app.core.auth import require_user
++
++router = APIRouter(prefix="/tasks", tags=["tasks"])
++
++
++@router.post("")
++def create_task(title: str, description: str = "", user: dict = Depends(require_user)):
++    task = TaskService.create(title, description)
++    return {"task": task}
++
++
++@router.get("")
++def list_tasks(user: dict = Depends(require_user)):
++    return {"tasks": TaskService.list_all()}
++
++
++@router.patch("/{task_id}")
++def update_task(task_id: str, title: str, description: str, user: dict = Depends(require_user)):
++    task = TaskService.update(task_id, title, description)
++    if task is None:
++        raise HTTPException(404, "Task not found")
++    return {"task": task}
++
++
++@router.delete("/{task_id}")
++def delete_task(task_id: str, user: dict = Depends(require_user)):
++    TaskService.delete(task_id)
++    return {"status": "ok"}
+diff --git a/app/routes/assignments.py b/app/routes/assignments.py
+new file mode 100644
+index 0000000..3333333
+--- /dev/null
++++ b/app/routes/assignments.py
+@@ -0,0 +1,16 @@
++from fastapi import APIRouter, HTTPException
++from app.services.assignments import AssignmentService
++from app.services.notifications import deliver_assignment_alert
++
++router = APIRouter(prefix="/assignments", tags=["assignments"])
++
++
++@router.post("/{task_id}/assign")
++def assign_task(task_id: str, user_id: str):
++    assignment = AssignmentService.assign(task_id, user_id)
++    deliver_assignment_alert(task_id, user_id, "system")
++    return {"assignment": assignment}
++
++
++@router.patch("/{task_id}/status")
++def set_status(task_id: str, status: str):
++    if status not in ("todo", "in_progress", "done"):
++        raise HTTPException(400, "Invalid status")
++    return {"status": AssignmentService.set_status(task_id, status)}
+diff --git a/app/services/notifications.py b/app/services/notifications.py
+new file mode 100644
+index 0000000..4444444
+--- /dev/null
++++ b/app/services/notifications.py
+@@ -0,0 +1,16 @@
++from app.services.email import send_email
++
++
++def deliver_assignment_alert(task_id: str, assignee_id: str, assigner_id: str):
++    if assignee_id == assigner_id:
++        return None
++    message = f"Task {task_id} was assigned to you"
++    send_email(assignee_id, "New task assignment", message)
++    record_in_app_notification(assignee_id, message)
++    return True
++
++
++def notify_user(user_id: str, message: str):
++    record_in_app_notification(user_id, message)
++    return True
+diff --git a/app/core/middleware.py b/app/core/middleware.py
+new file mode 100644
+index 0000000..5555555
+--- /dev/null
++++ b/app/core/middleware.py
+@@ -0,0 +1,15 @@
++import time
++from collections import defaultdict
++
++from fastapi import HTTPException, Request
++
++RATE_LIMIT = 10
++_hits: dict[str, list[float]] = defaultdict(list)
++
++
++async def rate_limit_middleware(request: Request, call_next):
++    if request.url.path.startswith("/auth"):
++        now = time.time()
++        _hits[request.client.host].append(now)
++        _hits[request.client.host] = [t for t in _hits[request.client.host] if now - t < 60]
++        if len(_hits[request.client.host]) > RATE_LIMIT:
++            raise HTTPException(429, "Too many authentication attempts, retry later")
++    return await call_next(request)
+diff --git a/app/core/audit_log.py b/app/core/audit_log.py
+new file mode 100644
+index 0000000..6666666
+--- /dev/null
++++ b/app/core/audit_log.py
+@@ -0,0 +1,11 @@
++from datetime import datetime, timezone
++
++from app.services.storage import append_audit_entry
++
++
++def write_audit_entry(action: str, actor_id: str, detail: str = ""):
++    entry = {
++        "action": action,
++        "actor_id": actor_id,
++        "detail": detail,
++        "created_at": datetime.now(timezone.utc).isoformat(),
++    }
++    append_audit_entry(entry)
++    return entry
+diff --git a/app/core/security.py b/app/core/security.py
+new file mode 100644
+index 0000000..a1a1a2a
+--- /dev/null
++++ b/app/core/security.py
+@@ -0,0 +1,9 @@
++import hashlib
++
++
++def hash_password(password: str) -> str:
++    return hashlib.sha256(password.encode()).hexdigest()
++
++
++def verify_password(password: str, digest: str) -> bool:
++    return hash_password(password) == digest
+diff --git a/app/services/session.py b/app/services/session.py
+new file mode 100644
+index 0000000..b2b2b2b
+--- /dev/null
++++ b/app/services/session.py
+@@ -0,0 +1,9 @@
++import secrets
++
++
++def create_session_token(user_id: int) -> str:
++    return secrets.token_hex(32)
++
++
++def revoke_session_token(token: str) -> None:
++    return None
+diff --git a/app/services/users.py b/app/services/users.py
+new file mode 100644
+index 0000000..c3c3c3c
+--- /dev/null
++++ b/app/services/users.py
+@@ -0,0 +1,15 @@
++_users: dict[str, dict] = {}
++
++
++def create_user(email: str, password_hash: str) -> dict:
++    user = {"id": len(_users) + 1, "email": email, "password_hash": password_hash}
++    _users[email] = user
++    return user
++
++
++def find_user_by_email(email: str) -> dict | None:
++    return _users.get(email)
++
++
++def user_exists(email: str) -> bool:
++    return email in _users
+diff --git a/app/services/tasks.py b/app/services/tasks.py
+new file mode 100644
+index 0000000..d4d4d4d
+--- /dev/null
++++ b/app/services/tasks.py
+@@ -0,0 +1,31 @@
++class TaskService:
++    _tasks: list[dict] = []
++    _seq: int = 0
++
++    @classmethod
++    def create(cls, title: str, description: str = "") -> dict:
++        cls._seq += 1
++        task = {"id": cls._seq, "title": title, "description": description}
++        cls._tasks.append(task)
++        return task
++
++    @classmethod
++    def list_all(cls) -> list[dict]:
++        return list(cls._tasks)
++
++    @classmethod
++    def update(cls, task_id: int, title: str, description: str) -> dict | None:
++        for task in cls._tasks:
++            if task["id"] == task_id:
++                task["title"] = title
++                task["description"] = description
++                return task
++        return None
++
++    @classmethod
++    def delete(cls, task_id: int) -> bool:
++        for i, task in enumerate(cls._tasks):
++            if task["id"] == task_id:
++                cls._tasks.pop(i)
++                return True
++        return False
+diff --git a/app/services/assignments.py b/app/services/assignments.py
+new file mode 100644
+index 0000000..e5e5e5e
+--- /dev/null
++++ b/app/services/assignments.py
+@@ -0,0 +1,16 @@
++class AssignmentService:
++    _assignments: list[dict] = []
++
++    @classmethod
++    def assign(cls, task_id: str, user_id: str) -> dict:
++        assignment = {"task_id": task_id, "assignee_id": user_id, "status": "todo"}
++        cls._assignments.append(assignment)
++        return assignment
++
++    @classmethod
++    def set_status(cls, task_id: str, status: str) -> dict | None:
++        for assignment in cls._assignments:
++            if assignment["task_id"] == task_id:
++                assignment["status"] = status
++                return assignment
++        return None
+diff --git a/app/services/email.py b/app/services/email.py
+new file mode 100644
+index 0000000..f6f6f6f
+--- /dev/null
++++ b/app/services/email.py
+@@ -0,0 +1,2 @@
++def send_email(user_id: str, subject: str, body: str) -> bool:
++    return True
+diff --git a/app/services/notifications_store.py b/app/services/notifications_store.py
+new file mode 100644
+index 0000000..a7a7a7a
+--- /dev/null
++++ b/app/services/notifications_store.py
+@@ -0,0 +1,6 @@
++_notifications: list[dict] = []
++
++
++def record_in_app_notification(user_id: str, message: str) -> bool:
++    _notifications.append({"user_id": user_id, "message": message})
++    return True
+diff --git a/app/services/storage.py b/app/services/storage.py
+new file mode 100644
+index 0000000..b8b8b8b
+--- /dev/null
++++ b/app/services/storage.py
+@@ -0,0 +1,2 @@
++def append_audit_entry(entry: dict) -> None:
++    return None

@@ -2,16 +2,25 @@
 
 import { Card, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { ClipboardList, Plus, RefreshCw } from "lucide-react";
+import { ClipboardList, Loader2, Plus, RefreshCw, Sparkles } from "lucide-react";
 
 type Props = {
   creating: boolean;
   busy: boolean;
+  generating: boolean;
   onToggleCreate: () => void;
   onRefresh: () => void;
+  onGenerate: () => void;
 };
 
-export function TasksHeader({ creating, busy, onToggleCreate, onRefresh }: Props) {
+export function TasksHeader({
+  creating,
+  busy,
+  generating,
+  onToggleCreate,
+  onRefresh,
+  onGenerate,
+}: Props) {
   return (
     <Card>
       <CardHeader className="gap-3">
@@ -28,7 +37,15 @@ export function TasksHeader({ creating, busy, onToggleCreate, onRefresh }: Props
           </div>
 
           <div className="flex shrink-0 items-center gap-2">
-            <Button size="sm" variant="outline" onClick={onRefresh}>
+            <Button size="sm" variant="outline" onClick={onGenerate} disabled={busy || generating}>
+              {generating ? (
+                <Loader2 className="h-3.5 w-3.5 motion-safe:animate-spin" aria-hidden="true" />
+              ) : (
+                <Sparkles className="h-3.5 w-3.5" aria-hidden="true" />
+              )}
+              <span className="ml-1.5">{generating ? "Generating…" : "Generate tasks"}</span>
+            </Button>
+            <Button size="sm" variant="outline" onClick={onRefresh} disabled={generating}>
               <RefreshCw className="h-3.5 w-3.5" aria-hidden="true" />
               <span className="ml-1.5">Refresh</span>
             </Button>
@@ -36,7 +53,7 @@ export function TasksHeader({ creating, busy, onToggleCreate, onRefresh }: Props
               size="sm"
               variant={creating ? "outline" : "default"}
               onClick={onToggleCreate}
-              disabled={busy}
+              disabled={busy || generating}
               aria-expanded={creating}
               aria-controls="new-task-card"
             >

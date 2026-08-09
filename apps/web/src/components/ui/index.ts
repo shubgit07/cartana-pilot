@@ -29,6 +29,7 @@ export {
 export { Input } from "./input";
 export type { InputProps } from "./input";
 export { Label } from "./label";
+export { LottieIcon } from "./lottie-icon";
 export {
   Select,
   SelectContent,

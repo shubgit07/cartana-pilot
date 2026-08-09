@@ -3,7 +3,7 @@
 Port of ``apps/api/src/modules/sources/service.ts``. Uploads are written to
 the configured :class:`~app.providers.storage_provider.StorageProvider`, the
 row is persisted with status ``uploaded``, and ingestion runs asynchronously
-via Celery - nothing in this module processes file contents.
+via ARQ - nothing in this module processes file contents.
 
 Every lookup is scoped by ``user_id`` (and by ``project_id`` where the route
 provides one), so a caller can never reach another user's sources.
@@ -11,7 +11,6 @@ provides one), so a caller can never reach another user's sources.
 from __future__ import annotations
 
 import logging
-from typing import Optional
 
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
@@ -34,7 +33,7 @@ _CHUNK_COUNT = (
 )
 
 
-def infer_kind(filename: str, mime_type: Optional[str] = None) -> SourceKind:
+def infer_kind(filename: str, mime_type: str | None = None) -> SourceKind:
     """Map a filename / MIME type onto a supported source kind."""
     name = filename.lower()
     if name.endswith(".pdf") or mime_type == "application/pdf":
@@ -57,7 +56,7 @@ def _remove_quietly(storage_key: str) -> None:
     """Best-effort file cleanup; storage problems must not break the request."""
     try:
         get_storage().remove(storage_key)
-    except Exception:  # noqa: BLE001 - deletion is best effort
+    except Exception:
         logger.warning("could not remove stored file (key=%s)", storage_key, exc_info=True)
 
 
@@ -71,7 +70,7 @@ def _get_owned_source(
     db: Session,
     user_id: str,
     source_id: str,
-    project_id: Optional[str] = None,
+    project_id: str | None = None,
 ) -> Source:
     source = db.execute(
         select(Source).where(Source.id == source_id, Source.user_id == user_id)
@@ -91,7 +90,7 @@ def _persist_source(
     filename: str,
     data: bytes,
     kind: SourceKind,
-    mime_type: Optional[str],
+    mime_type: str | None,
 ) -> SourceSummary:
     storage_key = get_storage().save(build_storage_key(project_id, filename), data)
 
@@ -131,7 +130,7 @@ def get_source(
     db: Session,
     user_id: str,
     source_id: str,
-    project_id: Optional[str] = None,
+    project_id: str | None = None,
 ) -> SourceSummary:
     source = _get_owned_source(db, user_id, source_id, project_id)
     return SourceSummary.from_model(source, _count_chunks(db, source.id))
@@ -144,7 +143,7 @@ def create_source_from_file(
     *,
     filename: str,
     data: bytes,
-    mime_type: Optional[str] = None,
+    mime_type: str | None = None,
 ) -> SourceSummary:
     get_owned_project(db, user_id, project_id)
     _validate_upload(data)
@@ -185,7 +184,7 @@ def get_source_job_status(
     db: Session,
     user_id: str,
     source_id: str,
-    project_id: Optional[str] = None,
+    project_id: str | None = None,
 ) -> JobStatusView:
     source = _get_owned_source(db, user_id, source_id, project_id)
     chunks_total = _count_chunks(db, source.id)
@@ -203,7 +202,7 @@ def delete_source(
     db: Session,
     user_id: str,
     source_id: str,
-    project_id: Optional[str] = None,
+    project_id: str | None = None,
 ) -> None:
     source = _get_owned_source(db, user_id, source_id, project_id)
     storage_key = source.storage_key

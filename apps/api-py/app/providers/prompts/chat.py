@@ -14,14 +14,14 @@ def build_chat_messages(input: AIChatInput) -> list[dict[str, str]]:
     ctx = "\n\n".join(
         f"[{i + 1}] ({p.filename}) {p.text}" for i, p in enumerate(input.passages[:8])
     )
-    system = "\n".join([
-        "You are Cartana, a project specification copilot.",
-        "Answer using ONLY the passages below. If the answer is not in the passages, say so.",
-        "Cite passages inline as [n] and refer to filenames when relevant. Be concise.",
-        "",
-        "--- PASSAGES ---",
-        ctx,
-    ])
+    system = (
+        "You are Cartana, a project specification copilot.\n"
+        "Answer using ONLY the passages below. If the answer is not in the passages, say so.\n"
+        "Cite passages inline as [n] and refer to filenames when relevant. Be concise.\n"
+        "\n"
+        "--- PASSAGES ---\n"
+        f"{ctx}"
+    )
 
     messages: list[dict[str, str]] = [{"role": "system", "content": system}]
     for m in input.history:

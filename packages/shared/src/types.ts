@@ -2,6 +2,7 @@
 
 export type SourceStatus = "uploaded" | "processing" | "processed" | "failed";
 export type SourceKind = "pdf" | "text";
+export type SourceStage = "uploading" | "chunking" | "ready" | "failed";
 
 export type TaskOrigin = "ai" | "user";
 export type TaskState = "suggested" | "accepted" | "rejected" | "edited";
@@ -61,6 +62,7 @@ export interface ChatResponse {
 export interface JobStatusView {
   sourceId: string;
   status: SourceStatus;
+  stage: SourceStage;
   chunksTotal: number;
   embedded: number;
   errorMessage: string | null;
@@ -153,4 +155,65 @@ export interface AuditRunSummary {
 export interface AuditRunDetail extends AuditRunSummary {
   findings: AuditFindingSummary[];
   coverageLinks: CoverageLinkSummary[];
+}
+
+// ---- Phase 4: Decomposed PR Trust Brief & Diff Verification ----
+
+export type VerificationVerdictStatus = "covered" | "partial" | "missing" | "unclear";
+export type VerificationConfidence = "high" | "medium" | "low";
+export type RiskAlertKind =
+  | "missing_backend_check"
+  | "no_tests"
+  | "scope_creep"
+  | "security_gap"
+  | "error_handling";
+export type RiskAlertSeverity = "critical" | "warning" | "info";
+export type PRTrustLevel = "high" | "medium" | "low";
+
+export interface RequirementVerificationVerdict {
+  reqId: string;
+  title: string;
+  status: VerificationVerdictStatus;
+  confidence: VerificationConfidence;
+  evidenceFile?: string | null;
+  evidenceSnippet?: string | null;
+  rationale: string;
+}
+
+export interface PRRiskAlert {
+  kind: RiskAlertKind;
+  severity: RiskAlertSeverity;
+  title: string;
+  description: string;
+  affectedFiles?: string[];
+}
+
+export interface ChangedFileSummary {
+  filename: string;
+  status: string;
+  additions: number;
+  deletions: number;
+}
+
+export interface PRTrustBrief {
+  id: string;
+  projectId: string;
+  title: string;
+  coverageScore: number;
+  trustLevel: PRTrustLevel;
+  summary: string;
+  totalRequirements: number;
+  coveredCount: number;
+  partialCount: number;
+  missingCount: number;
+  verdicts: RequirementVerificationVerdict[];
+  riskAlerts: PRRiskAlert[];
+  changedFilesSummary: ChangedFileSummary[];
+  createdAt: string;
+}
+
+export interface VerifyPRInput {
+  specText?: string;
+  rawDiff?: string;
+  githubPrUrl?: string;
 }

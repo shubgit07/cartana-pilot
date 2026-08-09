@@ -32,16 +32,24 @@ packages/shared/ Shared types, zod schemas, constants
 
 ## LLM providers
 
+Cloudflare is used for **embeddings only** (`EMBEDDING_PROVIDER=cloudflare`). It is
+**not** an LLM provider. The user-facing chat role is intentionally unwired (HTTP
+501 "LLM is not wired up").
+
 | Provider | Env | Notes |
 |---|---|---|
 | `stub` | `LLM_PROVIDER=stub` | Heuristic-only. Works end-to-end but low quality. |
-| `cloudflare` | `LLM_PROVIDER=cloudflare` + CF credentials | Workers AI. Already wired. |
-| `fireworks` | `LLM_PROVIDER=fireworks` + `FIREWORKS_API_KEY` | OpenAI-compatible. JSON mode for structured output. **Recommended for Phase 3 audit.** |
+| `gemini` | `LLM_PROVIDER=gemini` or `routing` + `GEMINI_API_KEY` | Primary for structured extraction/audit under `routing`; JSON mode (`responseMimeType: application/json`). |
+| `routing` | `LLM_PROVIDER=routing` | Per-role fallback chains. extract/audit: cerebras → gemini → groq → stub. chat: cerebras → groq → gemini → stub (unused until chat is wired). |
+| `fireworks` | `LLM_PROVIDER=fireworks` + `FIREWORKS_API_KEY` | OpenAI-compatible. JSON mode for structured output. |
 
 ## Web frontend conventions
 
 
 ## Testing
+
+- **Zero errors** in tests, typecheck, lint, and builds is required before any feature is considered done.
+- **Warnings are acceptable** unless they are security-critical (e.g. known-vulnerability advisories, hardcoded secrets, unsafe deserialization). Non-critical lint/style warnings (unused vars, import-ordering hints, blind-exception catches with an explicit fallback) do not block completion. Do not chase "zero warnings" — prefer production-ready, readable code over silencing linters.
 
 
 

@@ -8,12 +8,16 @@ All providers return L2-normalized vectors of dimension ``settings.embedding_dim
 """
 from __future__ import annotations
 
+import hashlib
+import json
 import logging
 import math
+from concurrent.futures import ThreadPoolExecutor
 from functools import lru_cache
 from typing import Protocol
 
 import httpx
+import redis
 
 from app.config import get_settings
 
@@ -97,30 +101,105 @@ class CloudflareEmbeddingProvider:
         return self._dim
 
     def embed(self, texts: list[str]) -> list[list[float]]:
-        results: list[list[float]] = []
-        for text in texts:
-            resp = httpx.post(
-                self._url,
-                json={"text": text},
-                headers=self._headers,
-                timeout=60,
-            )
-            if resp.status_code != 200:
-                raise RuntimeError(f"Cloudflare embed failed: {resp.status_code} {resp.text}")
+        concurrency = get_settings().embed_concurrency
+        if len(texts) <= 1 or concurrency <= 1:
+            return [self._embed_one(t) for t in texts]
+        with ThreadPoolExecutor(max_workers=concurrency) as pool:
+            return list(pool.map(self._embed_one, texts))
 
-            data = resp.json()
-            result = data.get("result")
-            if isinstance(result, dict) and "data" in result:
-                vec = result["data"][0]
-            elif isinstance(result, list):
-                vec = result
+    def _embed_one(self, text: str) -> list[float]:
+        resp = httpx.post(
+            self._url,
+            json={"text": text},
+            headers=self._headers,
+            timeout=60,
+        )
+        if resp.status_code != 200:
+            raise RuntimeError(f"Cloudflare embed failed: {resp.status_code} {resp.text}")
+
+        data = resp.json()
+        result = data.get("result")
+        if isinstance(result, dict) and "data" in result:
+            vec = result["data"][0]
+        elif isinstance(result, list):
+            vec = result
+        else:
+            raise RuntimeError("Cloudflare embed: unexpected response shape")
+
+        if len(vec) != self._dim:
+            raise RuntimeError(f"Embedding dim mismatch: got {len(vec)}, expected {self._dim}")
+        return _l2_normalize(vec)
+
+
+# ---- Embedding cache (Redis) ----
+
+def _embedding_key(text: str) -> str:
+    return f"embed:{hashlib.sha256(text.encode('utf-8')).hexdigest()}"
+
+
+class EmbeddingCache:
+    """Redis cache keyed by content hash. Raises if Redis is unavailable at init."""
+
+    def __init__(self, redis_url: str) -> None:
+        self._redis = redis.from_url(redis_url, socket_connect_timeout=1, socket_timeout=2)
+        self._redis.ping()
+
+    def get(self, key: str) -> list[float] | None:
+        try:
+            raw = self._redis.get(key)
+            return json.loads(raw) if raw else None
+        except (redis.RedisError, json.JSONDecodeError, TypeError):
+            return None
+
+    def set(self, key: str, value: list[float]) -> None:
+        try:
+            self._redis.set(key, json.dumps(value))
+        except redis.RedisError:
+            pass
+
+
+class CachedEmbeddingProvider:
+    """Wraps a real provider; unchanged text reuses cached vectors instead of re-embedding."""
+
+    def __init__(self, provider: EmbeddingProvider, cache: EmbeddingCache) -> None:
+        self._provider = provider
+        self._cache = cache
+
+    @property
+    def id(self) -> str:
+        return self._provider.id
+
+    @property
+    def dim(self) -> int:
+        return self._provider.dim
+
+    def embed(self, texts: list[str]) -> list[list[float]]:
+        keys = [_embedding_key(t) for t in texts]
+        hits = {
+            k: v for k, v in zip(keys, [self._cache.get(k) for k in keys]) if v is not None
+        }
+        misses = [t for i, t in enumerate(texts) if keys[i] not in hits]
+        vectors = self._provider.embed(misses) if misses else []
+        miss_iter = iter(vectors)
+
+        result: list[list[float]] = []
+        for key, text in zip(keys, texts):
+            if key in hits:
+                result.append(hits[key])
             else:
-                raise RuntimeError("Cloudflare embed: unexpected response shape")
+                vec = next(miss_iter)
+                self._cache.set(key, vec)
+                result.append(vec)
+        return result
 
-            if len(vec) != self._dim:
-                raise RuntimeError(f"Embedding dim mismatch: got {len(vec)}, expected {self._dim}")
-            results.append(_l2_normalize(vec))
-        return results
+
+def _maybe_cached(provider: EmbeddingProvider) -> EmbeddingProvider:
+    try:
+        cache = EmbeddingCache(get_settings().redis_url)
+        return CachedEmbeddingProvider(provider, cache)
+    except Exception:  # noqa: BLE001
+        logger.warning("Redis unavailable — embedding cache disabled")
+        return provider
 
 
 # ---- Factory ----
@@ -137,10 +216,12 @@ def get_embedding_provider() -> EmbeddingProvider:
                 "EMBEDDING_PROVIDER=cloudflare but credentials missing. Falling back to stub."
             )
             return StubEmbeddingProvider()
-        return CloudflareEmbeddingProvider(
-            settings.cloudflare_account_id,
-            settings.cloudflare_api_token,
-            settings.embedding_model,
+        return _maybe_cached(
+            CloudflareEmbeddingProvider(
+                settings.cloudflare_account_id,
+                settings.cloudflare_api_token,
+                settings.embedding_model,
+            )
         )
 
     return StubEmbeddingProvider()

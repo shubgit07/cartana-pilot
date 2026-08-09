@@ -6,7 +6,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { ConfirmDialog } from "@/components/common/ConfirmDialog";
 import { EmptyState } from "@/components/common/EmptyState";
 import { useToast } from "@/components/ui/toast";
-import { messageOf, useRequirements, useTasks } from "@/hooks/api";
+import { messageOf, useGenerateTasks, useRequirements, useTasks } from "@/hooks/api";
 import { TasksHeader } from "./TasksHeader";
 import { NewTaskForm } from "./NewTaskForm";
 import { TaskRow } from "./TaskRow";
@@ -20,6 +20,11 @@ export function TasksPanel({ projectId }: Props) {
   const { toast } = useToast();
   const [creating, setCreating] = React.useState(false);
   const [pendingDelete, setPendingDelete] = React.useState<TaskSummary | null>(null);
+  const {
+    run: generateTasks,
+    running: generatingTasks,
+    error: generateError,
+  } = useGenerateTasks(projectId, reload);
 
   const linkable = (requirements ?? []).filter((r) => r.state !== "rejected");
   const linkableOptions = React.useMemo(
@@ -76,9 +81,20 @@ export function TasksPanel({ projectId }: Props) {
       <TasksHeader
         creating={creating}
         busy={loading}
+        generating={generatingTasks}
         onToggleCreate={() => setCreating((c) => !c)}
         onRefresh={reload}
+        onGenerate={generateTasks}
       />
+
+      {generateError && (
+        <p
+          role="alert"
+          className="rounded-lg border border-danger/25 bg-danger-soft px-3 py-2 text-sm text-danger-soft-foreground"
+        >
+          {generateError}
+        </p>
+      )}
 
       {/* Persistent wrapper so TasksHeader's aria-controls always resolves. */}
       <div id="new-task-card">
@@ -115,7 +131,7 @@ export function TasksPanel({ projectId }: Props) {
             <EmptyState
               icon="inbox"
               title="No tasks yet"
-              description="Extracted tasks appear after a document is processed, or create one manually."
+              description="Generate tasks from your processed documents, or create one manually."
             />
           )}
 

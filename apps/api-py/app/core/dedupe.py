@@ -12,4 +12,4 @@ _WS = re.compile(r"\s+")
 
 def dedupe_key(source_id: str, title: str) -> str:
     norm = _WS.sub(" ", title.strip().lower())
-    return hashlib.sha256(f"{source_id}|{norm}".encode("utf-8")).hexdigest()
+    return hashlib.sha256(f"{source_id}|{norm}".encode()).hexdigest()

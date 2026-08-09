@@ -34,13 +34,16 @@ export function SourceRow({
   const displayChunks = live?.chunksTotal ?? chunkCount;
   const displayEmbedded = live?.embedded ?? 0;
   const displayError = live?.errorMessage ?? errorMessage;
+  const displayStage = live?.stage ?? null;
 
   const statusLabel = (() => {
     switch (displayStatus) {
       case "processed":
         return "Ready";
       case "processing":
-        return `Processing · embedding ${displayEmbedded} of ${displayChunks}`;
+        return displayStage === "chunking"
+          ? "Processing · chunking and embedding"
+          : "Processing · reading and chunking";
       case "uploaded":
         return "Queued";
       case "failed":
@@ -88,7 +91,11 @@ export function SourceRow({
             <SourceStatusBadge status={displayStatus} />
             {displayStatus === "processing" && (
               <span aria-live="polite">
-                embedding {displayEmbedded}/{displayChunks}
+                {displayEmbedded > 0
+                  ? `embedding ${displayEmbedded}/${displayChunks}`
+                  : displayStage === "chunking"
+                    ? "chunking"
+                    : "reading file"}
               </span>
             )}
             {displayError && displayStatus === "failed" && (

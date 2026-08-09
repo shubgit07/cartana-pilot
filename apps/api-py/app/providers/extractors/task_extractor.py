@@ -33,7 +33,7 @@ def _split_sentences(text: str) -> list[str]:
 def _leading_action_verb(sentence: str) -> str | None:
     lower = sentence.lower()
     for verb in _ACTION_VERBS:
-        if lower.startswith(verb + " ") or lower.startswith(verb + ","):
+        if lower.startswith((verb + " ", verb + ",")):
             return verb
     return None
 
@@ -47,7 +47,7 @@ def _make_title(sentence: str, action: str) -> str:
 
 def _tokenize(text: str) -> list[str]:
     cleaned = re.sub(r"[^a-z0-9\s]", " ", text.lower())
-    return [t for t in cleaned.split() if len(t) > 3]
+    return [t for t in cleaned.split() if len(t) >= 3]
 
 
 def _best_requirement_match(
@@ -90,27 +90,6 @@ def extract_tasks_stub(input: AIExtractTasksInput) -> list[ExtractedTask]:
                 chunkIds=[chunk_id],
                 linkedRequirementTitle=linked,
             ))
-
-    # Fallback: if no verb matched, generate tasks from lines/sentences
-    if not out:
-        for chunk in input.chunks:
-            text = str(chunk.get("text", ""))
-            chunk_id = str(chunk.get("id", ""))
-            for line in text.split("\n"):
-                s = line.strip()
-                if len(s) >= 15 and len(s) <= 200:
-                    title = "Implement " + s[:100]
-                    if title.lower() not in seen:
-                        seen.add(title.lower())
-                        linked = _best_requirement_match(title, input.requirements)
-                        out.append(ExtractedTask(
-                            title=title,
-                            description=s,
-                            chunkIds=[chunk_id],
-                            linkedRequirementTitle=linked,
-                        ))
-                    if len(out) >= 15:
-                        break
 
     return out[:60]
 

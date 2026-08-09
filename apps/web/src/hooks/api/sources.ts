@@ -2,7 +2,7 @@
 
 import * as React from "react";
 import { sourcesApi } from "@/lib/api";
-import type { SourceSummary } from "@cartana/shared";
+import type { SourceStage, SourceSummary } from "@cartana/shared";
 import { messageOf } from "./projects";
 
 const POLL_INTERVAL_MS = 1500;
@@ -47,6 +47,15 @@ export function useSources(projectId: string) {
     [projectId, reload]
   );
 
+  const createFromDiff = React.useCallback(
+    async (filename: string, content: string) => {
+      const source = await sourcesApi.createFromDiff(projectId, filename, content);
+      await reload();
+      return source;
+    },
+    [projectId, reload]
+  );
+
   const remove = React.useCallback(
     async (sourceId: string) => {
       await sourcesApi.remove(projectId, sourceId);
@@ -55,11 +64,12 @@ export function useSources(projectId: string) {
     [projectId, reload]
   );
 
-  return { sources, loading, error, reload, uploadFile, createFromText, remove };
+  return { sources, loading, error, reload, uploadFile, createFromText, createFromDiff, remove };
 }
 
 export interface SourceLiveStatus {
   status: SourceSummary["status"];
+  stage: SourceStage;
   chunksTotal: number;
   embedded: number;
   errorMessage: string | null;

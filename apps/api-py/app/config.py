@@ -1,5 +1,5 @@
 from functools import lru_cache
-from typing import Literal, Optional
+from typing import Literal
 
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
@@ -18,7 +18,7 @@ class Settings(BaseSettings):
     # Database (same DATABASE_URL as the Node backend; converted for SQLAlchemy below)
     database_url: str = "postgresql://cartana:cartana@localhost:5432/cartana"
 
-    # Redis / Celery
+    # Redis (ARQ jobs)
     redis_url: str = "redis://localhost:6379"
 
     # Storage
@@ -29,19 +29,48 @@ class Settings(BaseSettings):
     embedding_provider: Literal["stub", "cloudflare"] = "stub"
     embedding_model: str = "@cf/baai/bge-base-en-v1.5"
     embedding_dim: int = 768
-    cloudflare_account_id: Optional[str] = None
-    cloudflare_api_token: Optional[str] = None
+    cloudflare_account_id: str | None = None
+    cloudflare_api_token: str | None = None
+
+    # Qdrant Cloud (Vector DB)
+    qdrant_url: str | None = None
+    qdrant_api_key: str | None = None
+    qdrant_collection_name: str = "cartana_chunks"
+
+    # Upstash Redis REST (for serverless caching and rate limiting)
+    upstash_redis_rest_url: str | None = None
+    upstash_redis_rest_token: str | None = None
 
     # LLM generation provider
-    llm_provider: Literal["stub", "cloudflare", "fireworks"] = "stub"
+    llm_provider: Literal["stub", "fireworks", "groq", "gemini", "cerebras", "routing"] = "stub"
     llm_model: str = "stub"
-    openai_api_key: Optional[str] = None
-    anthropic_api_key: Optional[str] = None
-    cloudflare_llm_model: str = "@cf/meta/llama-3.1-8b-instruct"
+    openai_api_key: str | None = None
+    anthropic_api_key: str | None = None
+
+    # Cerebras (Ultra-fast inference free tier)
+    cerebras_api_key: str | None = None
+    cerebras_model: str = "llama3.1-8b"
 
     # Fireworks (Phase 3 audit LLM)
-    fireworks_api_key: Optional[str] = None
+    fireworks_api_key: str | None = None
     fireworks_model: str = "accounts/fireworks/models/llama-v3p1-8b-instruct"
+
+    # Groq (LLM_PROVIDER=routing → chat uses the chat model; extraction/audit fall back to Groq)
+    groq_api_key: str | None = None
+    groq_chat_model: str = "llama-3.3-70b-versatile"
+    groq_extract_model: str = "llama-3.1-8b-instant"
+    groq_audit_model: str = "llama-3.3-70b-versatile"
+
+    # Gemini (LLM_PROVIDER=routing → structured extraction/audit + chat fallback)
+    gemini_api_key: str | None = None
+    gemini_chat_model: str = "gemini-3.6-flash"
+    gemini_audit_model: str = "gemini-3.5-flash-lite"
+
+    # Cost/compute budgets
+    extract_max_chars: int = 80_000
+    chat_history_max_messages: int = 12
+    embed_concurrency: int = 8
+    ingest_timeout_seconds: int = 600
 
     # Dev user (single-user local MVP, no auth yet)
     dev_user_id: str = "dev-user"

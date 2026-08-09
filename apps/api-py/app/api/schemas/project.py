@@ -11,7 +11,7 @@ Input schemas mirror the Zod schemas in ``packages/shared/src/schemas.ts``
 """
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Optional
+from typing import TYPE_CHECKING
 
 from pydantic import BaseModel, ConfigDict, Field
 
@@ -41,12 +41,12 @@ class ProjectSummary(BaseModel):
 
     id: str
     name: str
-    description: Optional[str] = None
+    description: str | None = None
     createdAt: str
     sourceCount: int
 
     @classmethod
-    def from_model(cls, project: "Project", source_count: int) -> "ProjectSummary":
+    def from_model(cls, project: Project, source_count: int) -> ProjectSummary:
         return cls(
             id=project.id,
             name=project.name,
@@ -62,7 +62,7 @@ class ProjectDetail(ProjectSummary):
     sources: list[SourceSummary]
 
     @classmethod
-    def from_project(cls, project: "Project", sources: list[SourceSummary]) -> "ProjectDetail":
+    def from_project(cls, project: Project, sources: list[SourceSummary]) -> ProjectDetail:
         summary = ProjectSummary.from_model(project, source_count=len(sources))
         return cls(**summary.model_dump(), sources=sources)
 
@@ -92,7 +92,7 @@ class CreateProject(BaseModel):
     model_config = ConfigDict(extra="ignore")
 
     name: str = Field(min_length=1, max_length=120)
-    description: Optional[str] = Field(default=None, max_length=2000)
+    description: str | None = Field(default=None, max_length=2000)
 
 
 class UpdateProject(BaseModel):
@@ -106,5 +106,5 @@ class UpdateProject(BaseModel):
 
     model_config = ConfigDict(extra="ignore")
 
-    name: Optional[str] = Field(default=None, min_length=1, max_length=120)
-    description: Optional[str] = Field(default=None, max_length=2000)
+    name: str | None = Field(default=None, min_length=1, max_length=120)
+    description: str | None = Field(default=None, max_length=2000)

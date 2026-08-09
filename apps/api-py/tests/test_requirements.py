@@ -11,7 +11,7 @@ from app.db.models import (
     RequirementOrigin,
     RequirementState,
 )
-from tests.conftest import DEV_USER, OTHER_USER_ID, seed_project, seed_source
+from tests.conftest import OTHER_USER_ID, seed_project, seed_source
 
 REQUIREMENT_KEYS = {
     "id", "projectId", "title", "description", "origin", "state",
@@ -125,7 +125,7 @@ def test_delete(client, db_session):
 
 def test_other_user_isolated(client, db_session):
     project = seed_project(db_session)
-    req = _seed_requirement(db_session, project, user_id=OTHER_USER_ID)
+    _seed_requirement(db_session, project, user_id=OTHER_USER_ID)
     resp = client.get(f"/projects/{project.id}/requirements")
     assert resp.status_code == 200
     assert len(resp.json()["requirements"]) == 0

@@ -6,7 +6,7 @@ Mirrors ``RequirementSummary``, ``RequirementDetail`` in
 """
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Literal, Optional
+from typing import TYPE_CHECKING, Literal
 
 from pydantic import BaseModel, ConfigDict, Field
 
@@ -35,7 +35,7 @@ class RequirementSummary(BaseModel):
     id: str
     projectId: str
     title: str
-    description: Optional[str] = None
+    description: str | None = None
     origin: RequirementOriginLiteral
     state: RequirementStateLiteral
     sourceLinks: list[SourceLink]
@@ -43,7 +43,7 @@ class RequirementSummary(BaseModel):
     updatedAt: str
 
     @classmethod
-    def from_model(cls, req: "Requirement", source_links: list[SourceLink]) -> "RequirementSummary":
+    def from_model(cls, req: Requirement, source_links: list[SourceLink]) -> RequirementSummary:
         return cls(
             id=req.id,
             projectId=req.project_id,
@@ -78,6 +78,6 @@ class UpdateRequirement(BaseModel):
 
     model_config = ConfigDict(extra="ignore")
 
-    title: Optional[str] = Field(default=None, min_length=1, max_length=240)
-    description: Optional[str] = Field(default=None, max_length=4000)
-    state: Optional[RequirementStateLiteral] = None
+    title: str | None = Field(default=None, min_length=1, max_length=240)
+    description: str | None = Field(default=None, max_length=4000)
+    state: RequirementStateLiteral | None = None

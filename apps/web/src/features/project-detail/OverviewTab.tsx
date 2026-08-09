@@ -23,7 +23,7 @@ export function OverviewTab({ sourceCount, onUploadClick, onChatClick, reload }:
         step="1"
         icon={<Upload className="h-4 w-4" />}
         title="Upload"
-        description="Add briefs, PRDs, or notes."
+        description="Add briefs or PRDs."
         body={
           <p className="text-sm leading-relaxed text-muted-foreground">
             {hasSources ? formatSourceSummary(sourceCount) : "No sources yet."}

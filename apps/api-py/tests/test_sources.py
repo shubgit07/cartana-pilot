@@ -1,12 +1,12 @@
 """Sources API tests.
 
-Storage is redirected to a temporary directory and the Celery enqueue call is
+Storage is redirected to a temporary directory and the ARQ enqueue call is
 replaced with a recorder, so the suite needs neither Redis nor a real storage
 root. Shared fixtures live in tests/conftest.py.
 """
 from __future__ import annotations
 
-from datetime import datetime, timedelta
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from typing import Any
 
@@ -62,7 +62,7 @@ def test_list_sources_is_newest_first_with_chunk_counts(
     client: TestClient, db_session: Session
 ) -> None:
     project = seed_project(db_session)
-    base = datetime(2026, 7, 16, 11, 0, 0)
+    base = datetime(2026, 7, 16, 11, 0, 0, tzinfo=UTC)
     seed_source(db_session, project, filename="old.pdf", created_at=base, chunks=1)
     seed_source(db_session, project, filename="new.pdf", created_at=base + timedelta(hours=1))
 
@@ -106,7 +106,7 @@ def test_create_source_from_text_returns_201_and_exact_shape(
     assert source["status"] == "uploaded"
     assert source["errorMessage"] is None
     assert source["chunkCount"] == 0
-    datetime.strptime(source["createdAt"], "%Y-%m-%dT%H:%M:%S.%fZ")
+    datetime.fromisoformat(source["createdAt"])
 
     key = _stored_key(db_session, source["id"])
     assert key.startswith(f"projects/{project.id}/")
@@ -337,10 +337,34 @@ def test_job_status_reports_chunk_progress(client: TestClient, db_session: Sessi
     assert status == {
         "sourceId": source.id,
         "status": "processing",
+        "stage": "chunking",
         "chunksTotal": 4,
         "embedded": 3,
         "errorMessage": None,
     }
+
+
+def test_job_status_stage_maps_processing_without_chunks_to_uploading(
+    client: TestClient, db_session: Session
+) -> None:
+    project = seed_project(db_session)
+    source = seed_source(db_session, project, status=SourceStatus.PROCESSING)
+
+    status = client.get(f"/projects/{project.id}/sources/{source.id}/status").json()["status"]
+
+    assert status["status"] == "processing"
+    assert status["stage"] == "uploading"
+    assert status["chunksTotal"] == 0
+
+
+def test_job_status_stage_is_ready_for_processed(client: TestClient, db_session: Session) -> None:
+    project = seed_project(db_session)
+    source = seed_source(db_session, project, status=SourceStatus.PROCESSED)
+
+    status = client.get(f"/projects/{project.id}/sources/{source.id}/status").json()["status"]
+
+    assert status["status"] == "processed"
+    assert status["stage"] == "ready"
 
 
 def test_job_status_reports_failures(client: TestClient, db_session: Session) -> None:

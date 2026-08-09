@@ -64,6 +64,18 @@ def create_source_from_text(
     )
 
 
+@router.post("/diff", response_model=SourceResponse, status_code=status.HTTP_201_CREATED)
+def create_source_from_diff(
+    project_id: str,
+    payload: CreateSourceFromText,
+    db: Session = Depends(get_db),
+    user: CurrentUser = Depends(get_current_user),
+) -> SourceResponse:
+    return SourceResponse(
+        source=source_service.create_source_from_text(db, user.id, project_id, payload)
+    )
+
+
 @router.get("/{source_id}", response_model=SourceResponse)
 def get_source(
     project_id: str,

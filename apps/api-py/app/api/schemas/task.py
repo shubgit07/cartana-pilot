@@ -6,7 +6,7 @@ and ``CreateTaskSchema`` / ``UpdateTaskSchema`` in
 """
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Literal, Optional
+from typing import TYPE_CHECKING, Literal
 
 from pydantic import BaseModel, ConfigDict, Field
 
@@ -23,10 +23,10 @@ TaskStateLiteral = Literal["suggested", "accepted", "rejected", "edited"]
 class TaskSummary(BaseModel):
     id: str
     projectId: str
-    requirementId: Optional[str] = None
-    requirementTitle: Optional[str] = None
+    requirementId: str | None = None
+    requirementTitle: str | None = None
     title: str
-    description: Optional[str] = None
+    description: str | None = None
     origin: TaskOriginLiteral
     state: TaskStateLiteral
     sourceLinks: list[SourceLink]
@@ -34,7 +34,7 @@ class TaskSummary(BaseModel):
     updatedAt: str
 
     @classmethod
-    def from_model(cls, task: "Task", source_links: list[SourceLink]) -> "TaskSummary":
+    def from_model(cls, task: Task, source_links: list[SourceLink]) -> TaskSummary:
         return cls(
             id=task.id,
             projectId=task.project_id,
@@ -62,6 +62,17 @@ class TaskResponse(BaseModel):
     task: TaskSummary
 
 
+class TaskGenerateResponse(BaseModel):
+    jobId: str
+    status: str
+
+
+class TaskGenerateStatusResponse(BaseModel):
+    jobId: str
+    state: str
+    result: object | None = None
+
+
 class TaskDetailResponse(BaseModel):
     task: TaskDetail
 
@@ -72,8 +83,8 @@ class CreateTask(BaseModel):
     model_config = ConfigDict(extra="ignore")
 
     title: str = Field(min_length=1, max_length=240)
-    description: Optional[str] = Field(default=None, max_length=4000)
-    requirementId: Optional[str] = None
+    description: str | None = Field(default=None, max_length=4000)
+    requirementId: str | None = None
 
 
 class UpdateTask(BaseModel):
@@ -81,7 +92,7 @@ class UpdateTask(BaseModel):
 
     model_config = ConfigDict(extra="ignore")
 
-    title: Optional[str] = Field(default=None, min_length=1, max_length=240)
-    description: Optional[str] = Field(default=None, max_length=4000)
-    state: Optional[TaskStateLiteral] = None
-    requirementId: Optional[str] = None
+    title: str | None = Field(default=None, min_length=1, max_length=240)
+    description: str | None = Field(default=None, max_length=4000)
+    state: TaskStateLiteral | None = None
+    requirementId: str | None = None

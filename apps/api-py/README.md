@@ -1,9 +1,8 @@
 # Cartana API (Python)
 
-FastAPI backend that replaces `apps/api` (Node/Express) with the exact same API
-contract, so `apps/web` and `packages/shared` require no changes. See the
-root `MIGRATION_STATUS.md` for the full architecture/schema/endpoint reference
-this backend must replicate.
+FastAPI backend that replaced `apps/api` (Node/Express) with the exact same API
+contract, so `apps/web` and `packages/shared` require no changes. See
+`PROGRESS.md` in this directory for the migration status.
 
 ## Status
 
@@ -14,7 +13,7 @@ See `PROGRESS.md` in this directory for the current migration step.
 - FastAPI
 - SQLAlchemy 2.0 + Alembic
 - Postgres + pgvector (`psycopg` v3 driver, `pgvector` python package)
-- Redis + Celery for background jobs
+- Redis + ARQ for background jobs
 - Pydantic v2 / pydantic-settings for config and schemas
 
 ## Setup
@@ -35,11 +34,13 @@ is introduced.
 ## Run
 
 ```bash
-# API server
-uvicorn app.main:app --reload --port 4000
+# API server. --reload-include '.env' restarts the process when .env changes,
+# so provider configuration edits take effect immediately (12-factor: env is
+# captured at process start).
+uvicorn app.main:app --reload --reload-include '.env' --port 4000
 
-# Celery worker (once task modules exist)
-celery -A app.workers.celery_app.celery_app worker --loglevel=info
+# ARQ worker (background jobs)
+arq app.workers.arq_worker.WorkerSettings
 
 # Migrations (once models exist)
 alembic upgrade head
@@ -61,7 +62,7 @@ app/
   api/                 router aggregator, routes, dev-user dependency
   core/               shared errors/utilities
   providers/          AIProvider / EmbeddingProvider / StorageProvider interfaces
-  workers/            Celery app + background task modules
+  workers/            ARQ worker + background task modules
 ```
 
 Domain modules (projects, sources, chat, requirements, tasks, audit,

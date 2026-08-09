@@ -9,7 +9,7 @@ The input schema mirrors ``CreateSourceFromTextSchema`` in
 """
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Literal, Optional
+from typing import TYPE_CHECKING, Literal
 
 from pydantic import BaseModel, ConfigDict, Field
 
@@ -20,6 +20,23 @@ if TYPE_CHECKING:  # pragma: no cover - typing only
 
 SourceKindLiteral = Literal["pdf", "text"]
 SourceStatusLiteral = Literal["uploaded", "processing", "processed", "failed"]
+SourceStageLiteral = Literal["uploading", "chunking", "ready", "failed"]
+
+
+def _derive_stage(source: Source, chunks_total: int) -> SourceStageLiteral:
+    """Map the coarse status onto a finer UI stage.
+
+    Derived (no migration): "processing" with no chunks yet is still
+    uploading; once chunks exist the pipeline is chunking/embedding/extracting.
+    """
+    status = enum_value(source.status)
+    if status == "processed":
+        return "ready"
+    if status == "failed":
+        return "failed"
+    if status == "uploaded":
+        return "uploading"
+    return "chunking" if chunks_total > 0 else "uploading"
 
 
 # ---- Response DTOs ----
@@ -33,12 +50,12 @@ class SourceSummary(BaseModel):
     filename: str
     kind: SourceKindLiteral
     status: SourceStatusLiteral
-    errorMessage: Optional[str] = None
+    errorMessage: str | None = None
     createdAt: str
     chunkCount: int
 
     @classmethod
-    def from_model(cls, source: "Source", chunk_count: int) -> "SourceSummary":
+    def from_model(cls, source: Source, chunk_count: int) -> SourceSummary:
         return cls(
             id=source.id,
             projectId=source.project_id,
@@ -56,15 +73,17 @@ class JobStatusView(BaseModel):
 
     sourceId: str
     status: SourceStatusLiteral
+    stage: SourceStageLiteral
     chunksTotal: int
     embedded: int
-    errorMessage: Optional[str] = None
+    errorMessage: str | None = None
 
     @classmethod
-    def from_model(cls, source: "Source", chunks_total: int, embedded: int) -> "JobStatusView":
+    def from_model(cls, source: Source, chunks_total: int, embedded: int) -> JobStatusView:
         return cls(
             sourceId=source.id,
             status=enum_value(source.status),
+            stage=_derive_stage(source, chunks_total),
             chunksTotal=chunks_total,
             embedded=embedded,
             errorMessage=source.error_message,
@@ -97,3 +116,14 @@ class CreateSourceFromText(BaseModel):
 
     filename: str = Field(min_length=1, max_length=255)
     content: str = Field(min_length=1)
+
+
+class CreateSourceFromDiff(BaseModel):
+    """Payload for submitting raw Git Diffs or GitHub PR URLs."""
+
+    model_config = ConfigDict(extra="ignore")
+
+    filename: str = Field(default="implementation.diff", max_length=255)
+    diffContent: str | None = Field(default=None, max_length=500000)
+    githubPrUrl: str | None = Field(default=None, max_length=1000)
+

@@ -12,10 +12,10 @@ export function AppShell({ children }: { children: React.ReactNode }) {
             className="group -ml-1.5 inline-flex items-center gap-2.5 rounded-md px-1.5 py-1 transition-colors duration-150 hover:bg-surface-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/70 focus-visible:ring-offset-2 focus-visible:ring-offset-background"
           >
             <span className="grid size-7 place-items-center rounded-md bg-primary-soft text-primary-soft-foreground transition-colors duration-150">
-              <CartanaLogo className="h-4 w-4" />
+              <CartanaLogo className="size-[1.3rem]" />
             </span>
             <span
-              className="text-[0.9375rem] font-semibold tracking-tight text-foreground"
+              className="font-serif text-[1.21875rem] font-semibold tracking-tight text-foreground"
               translate="no"
             >
               Cartana
@@ -24,7 +24,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
 
           <nav aria-label="Utilities" className="flex items-center gap-2">
             <span className="hidden text-xs text-muted-foreground sm:inline">
-              Project specification copilot
+              Your PR copilot
             </span>
             <span aria-hidden="true" className="hidden h-4 w-px bg-border sm:inline-block" />
             <ThemeToggle />

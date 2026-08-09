@@ -7,11 +7,22 @@ backend cutover without changing the database consumed by the frontend.
 from __future__ import annotations
 
 import enum
-from datetime import datetime
+from datetime import UTC, datetime
 from uuid import uuid4
 
 from pgvector.sqlalchemy import Vector
-from sqlalchemy import DateTime, Enum, ForeignKey, Index, Integer, String, Text, UniqueConstraint, func, text
+from sqlalchemy import (
+    DateTime,
+    Enum,
+    ForeignKey,
+    Index,
+    Integer,
+    String,
+    Text,
+    UniqueConstraint,
+    func,
+    text,
+)
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.db.base import Base
@@ -97,7 +108,11 @@ def pgenum(enum_cls: type[enum.Enum], name: str) -> Enum:
 
 class TimestampMixin:
     created_at: Mapped[datetime] = mapped_column(
-        "createdAt", DateTime(timezone=False), server_default=text("CURRENT_TIMESTAMP"), nullable=False
+        "createdAt",
+        DateTime(timezone=False),
+        default=lambda: datetime.now(UTC).replace(tzinfo=None),
+        server_default=text("CURRENT_TIMESTAMP"),
+        nullable=False,
     )
 
 

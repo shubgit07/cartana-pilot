@@ -1,23 +1,23 @@
-"""Chat module — retrieval + generation.
+"""Chat module.
 
 Port of ``apps/api/src/modules/chat/service.ts`` + ``retrieval.ts``.
 
-RAG flow: embed the question → pgvector cosine similarity search → AI generation
-with citations. All scoped by user_id + project_id.
+The user-facing chat endpoint is intentionally **not wired up** yet: no LLM is
+configured for the chat role, so requests are rejected with HTTP 501. The
+``retrieve_passages`` helper (pgvector cosine similarity search) remains in
+place for the future RAG implementation.
 """
 from __future__ import annotations
 
 import logging
-from datetime import datetime, timezone
-from typing import Optional
 
 from sqlalchemy import text
 from sqlalchemy.orm import Session
 
-from app.api.schemas.chat import ChatAsk, ChatCitation, ChatMessage, ChatResponse
+from app.api.schemas.chat import ChatAsk, ChatResponse
 from app.api.services.project_service import get_owned_project
-from app.core.errors import NotFoundError
-from app.providers.ai_provider import AIChatInput, ChatPassage, get_ai_provider
+from app.core.errors import AppError
+from app.providers.ai_provider import ChatPassage
 from app.providers.embedding_provider import get_embedding_provider, to_pg_vector_literal
 
 logger = logging.getLogger(__name__)
@@ -31,6 +31,11 @@ def retrieve_passages(
     top_k: int = 6,
 ) -> list[ChatPassage]:
     """pgvector cosine similarity search over Chunks scoped to a project."""
+    dialect = db.get_bind().dialect.name
+    if dialect != "postgresql":
+        logger.info("pgvector retrieval requires Postgres; skipping (dialect=%s)", dialect)
+        return []
+
     provider = get_embedding_provider()
     vectors = provider.embed([question])
     if not vectors:
@@ -77,26 +82,17 @@ def retrieve_passages(
 def ask_project(
     db: Session, user_id: str, project_id: str, payload: ChatAsk
 ) -> ChatResponse:
-    """Verify ownership, retrieve passages, generate answer with citations."""
+    """Chat is intentionally not wired up — reject with a clear error.
+
+    No LLM is configured for the chat role, so every request returns HTTP 501
+    instead of falling back to retrieval-only answers. Ownership is still
+    verified so a missing project reports a correct 404. Enable retrieval and
+    generation here once a chat LLM provider is wired up.
+    """
     get_owned_project(db, user_id, project_id)
 
-    passages = retrieve_passages(db, user_id, project_id, payload.question)
-
-    ai = get_ai_provider()
-    history = []
-    if payload.history:
-        history = [{"role": m.role, "content": m.content} for m in payload.history]
-
-    out = ai.chat(AIChatInput(
-        question=payload.question,
-        history=history,
-        passages=passages,
-    ))
-
-    message = ChatMessage(
-        role="assistant",
-        content=out.answer,
-        citations=out.citations,
-        createdAt=datetime.now(timezone.utc).isoformat().replace("+00:00", "Z"),
+    raise AppError(
+        "LLM is not wired up",
+        status_code=501,
+        code="chat_not_wired",
     )
-    return ChatResponse(message=message)

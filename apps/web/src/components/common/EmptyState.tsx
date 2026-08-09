@@ -30,11 +30,20 @@ export function EmptyState({
   title: string;
   description?: React.ReactNode;
   actions?: React.ReactNode;
-  icon?: IconKind;
+  icon?: IconKind | React.ReactNode;
   className?: string;
   children?: React.ReactNode;
 }) {
-  const Icon = icon === "none" ? null : ICONS[icon];
+  const iconIsKind = typeof icon === "string";
+  const isCustom = !iconIsKind;
+  const kind = iconIsKind ? (icon as IconKind) : "inbox";
+  const Icon = kind === "none" ? null : ICONS[kind];
+  const tileTone = isCustom
+    ? "bg-primary-soft text-primary-soft-foreground"
+    : kind === "none"
+      ? null
+      : TILE_TONE[kind];
+  const showTile = iconIsKind ? kind !== "none" : Boolean(icon);
 
   return (
     <div
@@ -53,15 +62,16 @@ export function EmptyState({
       />
       <span aria-hidden="true" className="pointer-events-none absolute inset-0 -z-10 wash-primary" />
 
-      {Icon && (
+      {showTile && (
         <span
           aria-hidden="true"
           className={cn(
-            "grid size-12 place-items-center rounded-xl border shadow-soft",
-            TILE_TONE[icon as Exclude<IconKind, "none">]
+            "grid size-12 place-items-center rounded-xl shadow-soft",
+            !isCustom && "border",
+            tileTone
           )}
         >
-          <Icon className="size-5" />
+          {iconIsKind && Icon ? <Icon className="size-5" /> : icon}
         </span>
       )}
 

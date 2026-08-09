@@ -2,11 +2,9 @@
 
 Port of ``apps/api/src/modules/requirements/service.ts``. All queries filtered
 by ``user_id`` + ``project_id``. Includes idempotent upsert + stale-out helpers
-used by the extraction job (though those live in the Celery task module now).
+used by the extraction job (though those live in the ARQ task module now).
 """
 from __future__ import annotations
-
-from typing import Optional
 
 from sqlalchemy import select
 from sqlalchemy.orm import Session

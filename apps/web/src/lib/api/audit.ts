@@ -45,4 +45,16 @@ export const auditApi = {
         { method: "PATCH", body: JSON.stringify(input) }
       )
       .then((r) => r.coverageLink),
+
+  verifyPR: (
+    projectId: string,
+    input: import("@cartana/shared").VerifyPRInput
+  ) =>
+    apiClient.request<{
+      brief: import("@cartana/shared").PRTrustBrief;
+      fromCache: boolean;
+    }>(`/projects/${projectId}/audit/verify-pr`, {
+      method: "POST",
+      body: JSON.stringify(input),
+    }),
 };

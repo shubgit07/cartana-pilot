@@ -1,5 +1,6 @@
 import type { Metadata, Viewport } from "next";
-import { Inter, JetBrains_Mono, Plus_Jakarta_Sans } from "next/font/google";
+import { Inter, JetBrains_Mono } from "next/font/google";
+import localFont from "next/font/local";
 import "./globals.css";
 import { AppShell } from "@/components/layout/AppShell";
 import { ToastProvider } from "@/components/ui/toast";
@@ -13,11 +14,14 @@ const fontSans = Inter({
   variable: "--font-sans",
 });
 
-/** Display — modern geometric sans-serif for hero and headings. */
-const fontSerif = Plus_Jakarta_Sans({
-  subsets: ["latin"],
-  display: "swap",
+/** Display — geometric sans (Poppins) for hero and headings. */
+const fontSerif = localFont({
+  src: [
+    { path: "./fonts/Poppins-SemiBold.ttf", weight: "600" },
+    { path: "./fonts/Poppins-Black.ttf", weight: "900" },
+  ],
   variable: "--font-serif",
+  display: "swap",
 });
 
 
@@ -29,8 +33,9 @@ const fontMono = JetBrains_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "Cartana — Project Specification Copilot",
-  description: "Turn project documents into a clear execution plan.",
+  title: "Cartana | Project Specification Copilot",
+  description:
+    "Verify pull requests against your project's requirements. Coverage scores, trust levels, and requirement-by-requirement risk alerts.",
   applicationName: "Cartana",
 };
 

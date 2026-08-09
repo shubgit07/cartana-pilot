@@ -5,6 +5,7 @@ import { Plus } from "lucide-react";
 import { useProjects } from "@/hooks/api";
 import { Button } from "@/components/ui/button";
 import { EmptyState } from "@/components/common/EmptyState";
+import { CartanaLogo } from "@/components/layout/CartanaLogo";
 import { ProjectCard } from "./ProjectCard";
 import { ProjectGridSkeleton } from "./ProjectGridSkeleton";
 
@@ -32,7 +33,7 @@ export function ProjectList() {
             Projects
           </h1>
           <p className="max-w-prose text-sm leading-relaxed text-muted-foreground">
-            Turn specifications into structured requirements, tasks, coverage audits, and grounded AI answers.
+            Paste a diff or PR URL, and Cartana checks it against your requirements and shows what's covered, what's missing, and what's risky before you merge.
             {!loading && count > 0 && (
               <>
                 {" "}
@@ -63,7 +64,8 @@ export function ProjectList() {
       {!loading && projects && projects.length === 0 && (
         <EmptyState
           title="Welcome to Cartana"
-          description="Create your first project to upload specifications, automatically extract requirements and tasks, perform coverage audits, and chat with your AI copilot."
+          description="Start with a project. Upload your spec, extract requirements and tasks, then verify PRs against them. Coverage score, trust level, and drift, in seconds."
+          icon={<CartanaLogo className="size-10" />}
           actions={
             <Button asChild>
               <Link href="/projects/new">Create a project</Link>

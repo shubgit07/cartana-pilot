@@ -1,0 +1,57 @@
+{
+  "spec_file": "coverage_spec.md",
+  "requirements": [
+    { "id": "R1", "title": "User authentication", "description": "Users must be able to register with an email and password, sign in to obtain a session token, and sign out to revoke the session." },
+    { "id": "R2", "title": "Role-based permissions", "description": "Administrators must be able to assign roles and manage which team members can create, edit, or archive work items." },
+    { "id": "R3", "title": "Assignment notifications", "description": "The system must send a real-time alert to a user whenever a work item is assigned to them." },
+    { "id": "R4", "title": "File attachments", "description": "Users must be able to upload files to a work item and download previously attached files." }
+  ],
+  "scenarios": {
+    "covered_clear": {
+      "expected": { "R1": "covered", "R2": "covered", "R3": "covered", "R4": "covered" },
+      "tasks": [
+        { "id": "T1", "title": "Implement email/password registration endpoint", "description": "Create an endpoint that registers a new user account with an email and password." },
+        { "id": "T2", "title": "Add sign-in and sign-out endpoints", "description": "Sign-in issues a session token; sign-out revokes it." },
+        { "id": "T3", "title": "Add admin role management API", "description": "Allow admins to assign roles to team members." },
+        { "id": "T4", "title": "Enforce permission checks on work items", "description": "Block create/edit/archive actions unless the caller's role permits them." },
+        { "id": "T5", "title": "Send real-time notification on assignment", "description": "Notify the assignee in real time when a work item is assigned to them." },
+        { "id": "T6", "title": "Add file upload endpoint for work items", "description": "Upload files and attach them to a work item." },
+        { "id": "T7", "title": "Add file download endpoint", "description": "Download previously attached files for a work item." }
+      ]
+    },
+    "different_vocab": {
+      "expected": { "R1": "covered", "R2": "covered", "R3": "covered", "R4": "covered" },
+      "tasks": [
+        { "id": "T1", "title": "Credential-based account lifecycle", "description": "Implement account creation, login, and logout using email/password credentials and auth cookies." },
+        { "id": "T2", "title": "Admin controls for member access levels", "description": "Let administrators grant access tiers and decide who may create, change, or retire project items." },
+        { "id": "T3", "title": "Instant alerts when items change hands", "description": "Push a live alert to a colleague the moment a work item is handed over to them." },
+        { "id": "T4", "title": "Document attachments on cards", "description": "Support attaching documents to a card and fetching stored documents later." },
+        { "id": "T5", "title": "Login page UI", "description": "Build the login screen with email and password fields and a submit button." },
+        { "id": "T6", "title": "Team member directory", "description": "Show the list of team members and their current access levels." },
+        { "id": "T7", "title": "Activity feed", "description": "Display a feed of recent changes to work items." },
+        { "id": "T8", "title": "Card detail drawer", "description": "Render the detail view of a work item including metadata and comments." },
+        { "id": "T9", "title": "Dark mode styling", "description": "Add a dark theme to the application shell." }
+      ]
+    },
+    "distractor": {
+      "expected": { "R1": "missing", "R2": "missing", "R3": "missing", "R4": "missing" },
+      "tasks": [
+        { "id": "T1", "title": "Authentication settings page", "description": "A settings screen where users can view account details. It does not register, sign in, or issue tokens." },
+        { "id": "T2", "title": "Permission labels in UI", "description": "Display read-only badges showing the current role of each team member. No role assignment or enforcement." },
+        { "id": "T3", "title": "Notification preferences screen", "description": "A screen to toggle notification preferences. It does not send alerts when work items are assigned." },
+        { "id": "T4", "title": "Attachment icon in card header", "description": "Show an attachment icon when a work item has files. No upload or download functionality." }
+      ]
+    },
+    "truly_missing": {
+      "expected": { "R1": "covered", "R2": "covered", "R3": "covered", "R4": "missing" },
+      "tasks": [
+        { "id": "T1", "title": "Implement email/password registration endpoint", "description": "Create an endpoint that registers a new user account with an email and password." },
+        { "id": "T2", "title": "Add sign-in and sign-out endpoints", "description": "Sign-in issues a session token; sign-out revokes it." },
+        { "id": "T3", "title": "Add admin role management API", "description": "Allow admins to assign roles to team members." },
+        { "id": "T4", "title": "Enforce permission checks on work items", "description": "Block create/edit/archive actions unless the caller's role permits them." },
+        { "id": "T5", "title": "Send real-time notification on assignment", "description": "Notify the assignee in real time when a work item is assigned to them." },
+        { "id": "T6", "title": "Keyboard shortcuts", "description": "Add keyboard shortcuts to navigate between work items." }
+      ]
+    }
+  }
+}

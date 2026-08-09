@@ -42,6 +42,22 @@ class PayloadTooLargeError(AppError):
         super().__init__(message, status_code=413, code=code)
 
 
+class LLMServiceError(AppError):
+    """Raised when an LLM call is required but unavailable or returns unusable output.
+
+    The decomposed PR verification pipeline never degrades to keyword
+    heuristics: if the LLM cannot produce a structured verdict the request
+    fails loudly (HTTP 502) rather than returning fabricated results.
+    """
+
+    def __init__(
+        self,
+        message: str = "LLM verification unavailable",
+        code: str = "llm_service_error",
+    ) -> None:
+        super().__init__(message, status_code=502, code=code)
+
+
 async def app_error_handler(request: Request, exc: AppError) -> JSONResponse:
     return JSONResponse(
         status_code=exc.status_code,

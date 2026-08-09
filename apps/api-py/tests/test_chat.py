@@ -1,9 +1,8 @@
 """Tests for the Chat module.
 
-Covers the chat endpoint with stub provider (no LLM credentials needed).
-The stub returns retrieval-only answers from pgvector search, but since
-SQLite tests don't have pgvector, we test the service-level contract:
-ownership check, response shape, and 404 for missing projects.
+The chat LLM is intentionally not wired up, so every valid request is rejected
+with HTTP 501 and a clear error. These tests cover the endpoint contract:
+ownership check (404), request validation (422), and the unwired-chat error.
 """
 from __future__ import annotations
 
@@ -24,23 +23,19 @@ def test_chat_validation_empty_question(client, db_session):
     assert resp.status_code == 422
 
 
-def test_chat_response_shape(client, db_session):
-    """With no chunks/embeddings, the stub returns a 'no passages' answer."""
+def test_chat_returns_501_when_llm_not_wired(client, db_session):
     project = seed_project(db_session)
     resp = client.post(
         f"/projects/{project.id}/chat",
         json={"question": "What does this project do?"},
     )
-    assert resp.status_code == 200
+    assert resp.status_code == 501
     data = resp.json()
-    assert "message" in data
-    msg = data["message"]
-    assert msg["role"] == "assistant"
-    assert "content" in msg
-    assert "createdAt" in msg
+    assert data["error"]["code"] == "chat_not_wired"
+    assert data["error"]["message"] == "LLM is not wired up"
 
 
-def test_chat_with_history(client, db_session):
+def test_chat_with_history_returns_501(client, db_session):
     project = seed_project(db_session)
     resp = client.post(
         f"/projects/{project.id}/chat",
@@ -52,4 +47,4 @@ def test_chat_with_history(client, db_session):
             ],
         },
     )
-    assert resp.status_code == 200
+    assert resp.status_code == 501

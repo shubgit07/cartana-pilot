@@ -1,7 +1,7 @@
 """Projects API tests - shared fixtures live in tests/conftest.py."""
 from __future__ import annotations
 
-from datetime import datetime, timedelta
+from datetime import UTC, datetime, timedelta
 
 from fastapi.testclient import TestClient
 from sqlalchemy.orm import Session
@@ -14,7 +14,6 @@ from tests.conftest import (
     seed_project,
     seed_source,
 )
-
 
 # ---- list ----
 
@@ -29,8 +28,8 @@ def test_list_projects_returns_empty_list(client: TestClient) -> None:
 def test_list_projects_is_newest_first_with_source_counts(
     client: TestClient, db_session: Session
 ) -> None:
-    older = seed_project(db_session, name="Older", created_at=datetime(2026, 7, 10, 9, 0, 0))
-    newer = seed_project(db_session, name="Newer", created_at=datetime(2026, 7, 12, 9, 0, 0))
+    older = seed_project(db_session, name="Older", created_at=datetime(2026, 7, 10, 9, 0, 0, tzinfo=UTC))
+    newer = seed_project(db_session, name="Newer", created_at=datetime(2026, 7, 12, 9, 0, 0, tzinfo=UTC))
     seed_source(db_session, older, chunks=2)
 
     projects = client.get("/projects").json()["projects"]
@@ -66,7 +65,7 @@ def test_create_project_returns_201_and_exact_summary_shape(client: TestClient) 
     assert project["sourceCount"] == 0
     assert isinstance(project["createdAt"], str)
     # ISO 8601 with millisecond precision, exactly like Date.toISOString().
-    datetime.strptime(project["createdAt"], "%Y-%m-%dT%H:%M:%S.%fZ")
+    datetime.fromisoformat(project["createdAt"])
 
 
 def test_create_project_defaults_description_to_null(client: TestClient) -> None:
@@ -115,7 +114,7 @@ def test_get_project_returns_detail_with_sources_and_chunk_counts(
 
 def test_get_project_sources_are_newest_first(client: TestClient, db_session: Session) -> None:
     project = seed_project(db_session)
-    base = datetime(2026, 7, 16, 11, 0, 0)
+    base = datetime(2026, 7, 16, 11, 0, 0, tzinfo=UTC)
     seed_source(db_session, project, filename="old.pdf", created_at=base)
     seed_source(db_session, project, filename="new.pdf", created_at=base + timedelta(hours=1))
 

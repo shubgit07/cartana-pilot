@@ -6,7 +6,7 @@ during the migration.
 """
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from enum import Enum
 
 
@@ -17,8 +17,8 @@ def to_iso8601(value: datetime) -> str:
     naive value is treated as UTC and formatted with millisecond precision and
     a trailing ``Z``.
     """
-    moment = value if value.tzinfo is not None else value.replace(tzinfo=timezone.utc)
-    moment = moment.astimezone(timezone.utc)
+    moment = value if value.tzinfo is not None else value.replace(tzinfo=UTC)
+    moment = moment.astimezone(UTC)
     return f"{moment.strftime('%Y-%m-%dT%H:%M:%S')}.{moment.microsecond // 1000:03d}Z"
 
 

@@ -6,6 +6,7 @@ for full testing, so we test the CRUD contract here.
 """
 from __future__ import annotations
 
+from app.api.services.audit_service import promote_suggestions_to_accepted
 from app.db.models import (
     AuditFinding,
     AuditFindingKind,
@@ -120,7 +121,7 @@ def test_get_latest_audit(client, db_session):
     assert resp.status_code == 200
     data = resp.json()["run"]
     assert data["summary"] == "Second run"
-    assert len(data["findings"]) == 4  # 2 per run
+    assert len(data["findings"]) == 2  # findings belong to the latest run only
     assert "coverageLinks" in data
 
 
@@ -161,3 +162,59 @@ def test_update_coverage_link_404(client, db_session):
         json={"status": "covered"},
     )
     assert resp.status_code == 404
+
+
+def test_promote_suggestions_to_accepted(db_session):
+    project = seed_project(db_session)
+    req = Requirement(
+        project_id=project.id,
+        user_id=project.user_id,
+        title="Must support SSO",
+        origin=RequirementOrigin.AI,
+        state=RequirementState.SUGGESTED,
+    )
+    task = Task(
+        project_id=project.id,
+        user_id=project.user_id,
+        title="Implement SSO",
+        origin=TaskOrigin.AI,
+        state=TaskState.SUGGESTED,
+    )
+    already_accepted = Task(
+        project_id=project.id,
+        user_id=project.user_id,
+        title="Existing accepted task",
+        origin=TaskOrigin.USER,
+        state=TaskState.ACCEPTED,
+    )
+    db_session.add_all([req, task, already_accepted])
+    db_session.commit()
+
+    counts = promote_suggestions_to_accepted(db_session, project.user_id, project.id)
+
+    assert counts == {"requirements": 1, "tasks": 1}
+    db_session.refresh(req)
+    db_session.refresh(task)
+    db_session.refresh(already_accepted)
+    assert req.state == RequirementState.ACCEPTED
+    assert task.state == TaskState.ACCEPTED
+    assert already_accepted.state == TaskState.ACCEPTED
+
+
+def test_promote_suggestions_to_accepted_ignores_rejected(db_session):
+    project = seed_project(db_session)
+    req = Requirement(
+        project_id=project.id,
+        user_id=project.user_id,
+        title="Should stay rejected",
+        origin=RequirementOrigin.AI,
+        state=RequirementState.REJECTED,
+    )
+    db_session.add(req)
+    db_session.commit()
+
+    counts = promote_suggestions_to_accepted(db_session, project.user_id, project.id)
+
+    assert counts == {"requirements": 0, "tasks": 0}
+    db_session.refresh(req)
+    assert req.state == RequirementState.REJECTED

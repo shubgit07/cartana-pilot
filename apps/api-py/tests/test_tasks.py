@@ -7,7 +7,6 @@ from __future__ import annotations
 
 from app.db.models import Task, TaskOrigin, TaskState
 from tests.conftest import seed_project
-
 from tests.test_requirements import _seed_requirement
 
 TASK_KEYS = {

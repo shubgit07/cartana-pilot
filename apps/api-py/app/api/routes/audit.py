@@ -6,7 +6,7 @@ Port of ``apps/api/src/modules/audit/router.ts``. Two routers:
 """
 from __future__ import annotations
 
-from fastapi import APIRouter, Depends, Response, status
+from fastapi import APIRouter, Depends
 from sqlalchemy.orm import Session
 
 from app.api.deps import CurrentUser, get_current_user
@@ -17,7 +17,9 @@ from app.api.schemas.audit import (
     AuditRunResponse,
     CoverageLinkListResponse,
     CoverageLinkResponse,
+    PRTrustBriefResponse,
     UpdateCoverageLink,
+    VerifyPRInput,
 )
 from app.api.services import audit_service
 from app.core.errors import NotFoundError
@@ -62,6 +64,8 @@ def get_latest_audit(
     user: CurrentUser = Depends(get_current_user),
 ) -> AuditRunDetailResponse:
     run = audit_service.get_latest_audit(db, user.id, project_id)
+    if run is None:
+        raise NotFoundError("No audit run found for this project")
     return AuditRunDetailResponse(run=run)
 
 
@@ -80,6 +84,22 @@ def get_audit_job_status(
         result=job_info.get("result"),
     )
 
+
+@audit_router.post("/verify-pr", response_model=PRTrustBriefResponse)
+def verify_pr(
+    project_id: str,
+    payload: VerifyPRInput,
+    db: Session = Depends(get_db),
+    user: CurrentUser = Depends(get_current_user),
+) -> PRTrustBriefResponse:
+    """Run decomposed PR Trust Brief verification on diff and spec."""
+    brief, from_cache = audit_service.verify_pr_and_generate_trust_brief(
+        db=db,
+        user_id=user.id,
+        project_id=project_id,
+        input_data=payload,
+    )
+    return PRTrustBriefResponse(brief=brief, fromCache=from_cache)
 
 
 # ---- Coverage endpoints ----

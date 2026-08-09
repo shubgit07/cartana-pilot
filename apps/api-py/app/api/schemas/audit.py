@@ -6,7 +6,7 @@ Mirrors ``CoverageLinkSummary``, ``AuditFindingSummary``, ``AuditRunSummary``,
 """
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Literal, Optional
+from typing import TYPE_CHECKING, Literal
 
 from pydantic import BaseModel, ConfigDict, Field
 
@@ -33,12 +33,12 @@ class CoverageLinkSummary(BaseModel):
     taskTitle: str
     status: CoverageStatusLiteral
     origin: CoverageOriginLiteral
-    rationale: Optional[str] = None
+    rationale: str | None = None
     createdAt: str
     updatedAt: str
 
     @classmethod
-    def from_model(cls, link: "CoverageLink") -> "CoverageLinkSummary":
+    def from_model(cls, link: CoverageLink) -> CoverageLinkSummary:
         return cls(
             id=link.id,
             projectId=link.project_id,
@@ -60,14 +60,14 @@ class AuditFindingSummary(BaseModel):
     kind: AuditFindingKindLiteral
     severity: AuditSeverityLiteral
     message: str
-    requirementId: Optional[str] = None
-    requirementTitle: Optional[str] = None
-    taskId: Optional[str] = None
-    taskTitle: Optional[str] = None
+    requirementId: str | None = None
+    requirementTitle: str | None = None
+    taskId: str | None = None
+    taskTitle: str | None = None
     createdAt: str
 
     @classmethod
-    def from_model(cls, finding: "AuditFinding") -> "AuditFindingSummary":
+    def from_model(cls, finding: AuditFinding) -> AuditFindingSummary:
         return cls(
             id=finding.id,
             runId=finding.run_id,
@@ -85,7 +85,7 @@ class AuditFindingSummary(BaseModel):
 class AuditRunSummary(BaseModel):
     id: str
     projectId: str
-    summary: Optional[str] = None
+    summary: str | None = None
     findingCount: int
     criticalCount: int
     warningCount: int
@@ -95,9 +95,9 @@ class AuditRunSummary(BaseModel):
     @classmethod
     def from_model(
         cls,
-        run: "AuditRun",
-        findings: list["AuditFinding"],
-    ) -> "AuditRunSummary":
+        run: AuditRun,
+        findings: list[AuditFinding],
+    ) -> AuditRunSummary:
         return cls(
             id=run.id,
             projectId=run.project_id,
@@ -123,7 +123,7 @@ class AuditRunListResponse(BaseModel):
 
 
 class AuditRunDetailResponse(BaseModel):
-    run: Optional[AuditRunDetail] = None
+    run: AuditRunDetail | None = None
 
 
 class AuditRunResponse(BaseModel):
@@ -134,7 +134,7 @@ class AuditRunResponse(BaseModel):
 class AuditJobStatusResponse(BaseModel):
     jobId: str
     state: str
-    result: Optional[object] = None
+    result: object | None = None
 
 
 class CoverageLinkListResponse(BaseModel):
@@ -153,5 +153,76 @@ class UpdateCoverageLink(BaseModel):
 
     model_config = ConfigDict(extra="ignore")
 
-    status: Optional[CoverageStatusLiteral] = None
-    rationale: Optional[str] = Field(default=None, max_length=2000)
+    status: CoverageStatusLiteral | None = None
+    rationale: str | None = Field(default=None, max_length=2000)
+
+
+# ---- Phase 4: PR Verification & Trust Brief Schemas ----
+
+VerificationVerdictStatusLiteral = Literal["covered", "partial", "missing", "unclear"]
+VerificationConfidenceLiteral = Literal["high", "medium", "low"]
+RiskAlertKindLiteral = Literal[
+    "missing_backend_check",
+    "no_tests",
+    "scope_creep",
+    "security_gap",
+    "error_handling",
+]
+RiskAlertSeverityLiteral = Literal["critical", "warning", "info"]
+PRTrustLevelLiteral = Literal["high", "medium", "low"]
+
+
+class RequirementVerificationVerdict(BaseModel):
+    reqId: str
+    title: str
+    status: VerificationVerdictStatusLiteral
+    confidence: VerificationConfidenceLiteral = "high"
+    evidenceFile: str | None = None
+    evidenceSnippet: str | None = None
+    rationale: str
+
+
+class PRRiskAlert(BaseModel):
+    kind: RiskAlertKindLiteral
+    severity: RiskAlertSeverityLiteral
+    title: str
+    description: str
+    affectedFiles: list[str] = Field(default_factory=list)
+
+
+class ChangedFileSummary(BaseModel):
+    filename: str
+    status: str
+    additions: int
+    deletions: int
+
+
+class PRTrustBrief(BaseModel):
+    id: str
+    projectId: str
+    title: str
+    coverageScore: int = Field(ge=0, le=100)
+    trustLevel: PRTrustLevelLiteral
+    summary: str
+    totalRequirements: int
+    coveredCount: int
+    partialCount: int
+    missingCount: int
+    verdicts: list[RequirementVerificationVerdict] = Field(default_factory=list)
+    riskAlerts: list[PRRiskAlert] = Field(default_factory=list)
+    changedFilesSummary: list[ChangedFileSummary] = Field(default_factory=list)
+    createdAt: str
+
+
+class VerifyPRInput(BaseModel):
+    model_config = ConfigDict(extra="ignore")
+
+    specText: str | None = Field(default=None, max_length=50000)
+    rawDiff: str | None = Field(default=None, max_length=200000)
+    githubPrUrl: str | None = Field(default=None, max_length=1000)
+
+
+class PRTrustBriefResponse(BaseModel):
+    brief: PRTrustBrief
+    fromCache: bool = False
+

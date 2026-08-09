@@ -1,0 +1,40 @@
+{
+  "spec_file": "spec_brief.md",
+  "requirements": [
+    {
+      "id": "R1",
+      "title": "User authentication",
+      "description": "Users must be able to register with an email and a password, sign in to obtain a session token, and sign out to revoke it."
+    },
+    {
+      "id": "R2",
+      "title": "Task management",
+      "description": "Authenticated users must be able to create, list, update, and delete tasks."
+    },
+    {
+      "id": "R4",
+      "title": "Notification delivery",
+      "description": "The system must deliver a notification alert to a user when a task is assigned to them."
+    }
+  ],
+  "prs": {
+    "full_impl.diff": {
+      "R1": "covered", "R2": "covered", "R4": "covered"
+    },
+    "missing_r4.diff": {
+      "R1": "covered", "R2": "covered", "R4": "missing"
+    },
+    "partial_r2.diff": {
+      "R1": "covered", "R2": "partial", "R4": "covered"
+    },
+    "renamed_impl.diff": {
+      "R1": "covered", "R2": "covered", "R4": "covered"
+    },
+    "tests_only.diff": {
+      "R1": "missing", "R2": "missing", "R4": "missing"
+    },
+    "unrelated_refactor.diff": {
+      "R1": "missing", "R2": "missing", "R4": "missing"
+    }
+  }
+}

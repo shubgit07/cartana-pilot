@@ -1,8 +1,9 @@
 """Arq background worker & job execution pipeline.
 
-Replaces Celery with ARQ (Asyncio Redis Queue).
+Arq (Asyncio Redis Queue) powers the background job pipeline.
 Provides async job functions for:
-  - run_ingest -> run_chunk -> run_embed -> run_extract_requirements -> run_extract_tasks
+  - run_ingest -> run_chunk -> run_embed -> run_extract_requirements
+  - run_task_generation (on-demand, for processed sources)
   - run_audit_task
 
 Also manages an in-memory & Redis job status registry for live status polling.
@@ -11,11 +12,13 @@ from __future__ import annotations
 
 import asyncio
 import logging
+import threading
 import uuid
-from typing import Any, Optional
+from collections.abc import Callable
+from typing import Any, ClassVar
 
-from arq import create_pool
 from arq.connections import RedisSettings
+from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.config import get_settings
@@ -46,7 +49,7 @@ logger = logging.getLogger(__name__)
 _job_status_registry: dict[str, dict[str, Any]] = {}
 
 
-def set_job_status(job_id: str, state: str, result: Any = None, error: Optional[str] = None) -> None:
+def set_job_status(job_id: str, state: str, result: Any = None, error: str | None = None) -> None:
     _job_status_registry[job_id] = {
         "jobId": job_id,
         "state": state,  # "pending", "processing", "completed", "failed"
@@ -63,7 +66,7 @@ def get_job_status(job_id: str) -> dict[str, Any]:
 
 
 # Helper for Source Status
-def _mark_source_status(session: Session, source_id: str, status: SourceStatus, error: Optional[str] = None) -> None:
+def _mark_source_status(session: Session, source_id: str, status: SourceStatus, error: str | None = None) -> None:
     source = session.get(Source, source_id)
     if source is not None:
         source.status = status
@@ -89,9 +92,28 @@ def _dedupe_chunk_ids(ids: list[str]) -> list[str]:
     return result
 
 
+def _cap_chunks_for_extract(chunks: list[Chunk], max_chars: int) -> list[Chunk]:
+    """Bound the per-extraction LLM prompt to a character budget (cost control)."""
+    total = 0
+    capped: list[Chunk] = []
+    for chunk in chunks:
+        total += len(chunk.text)
+        if total > max_chars:
+            break
+        capped.append(chunk)
+    if len(capped) < len(chunks):
+        logger.warning(
+            "arq:extract:chunks truncated (%d/%d) beyond %d chars — trailing chunks dropped",
+            len(capped),
+            len(chunks),
+            max_chars,
+        )
+    return capped
+
+
 # ---- Core synchronous task execution logic ----
 
-def execute_ingest_stage(source_id: str, project_id: Optional[str] = None, user_id: Optional[str] = None) -> str:
+def execute_ingest_stage(source_id: str, project_id: str | None = None, user_id: str | None = None) -> str:
     """Stage 1: Load file, extract text."""
     logger.info("arq:ingest:start (source_id=%s)", source_id)
     session = SessionLocal()
@@ -158,7 +180,6 @@ def execute_embed_stage(source_id: str, project_id: str, user_id: str, chunk_ids
     try:
         chunks = session.query(Chunk).filter(Chunk.id.in_(chunk_ids)).all()
         if not chunks:
-            _mark_source_status(session, source_id, SourceStatus.PROCESSED, error=None)
             return 0
 
         provider = get_embedding_provider()
@@ -171,7 +192,6 @@ def execute_embed_stage(source_id: str, project_id: str, user_id: str, chunk_ids
                 .values(embedding=vec)
             )
 
-        _mark_source_status(session, source_id, SourceStatus.PROCESSED, error=None)
         session.commit()
         logger.info("arq:embed:done (source_id=%s, embedded=%d)", source_id, len(chunks))
         return len(chunks)
@@ -200,6 +220,12 @@ def execute_extract_requirements_stage(source_id: str, project_id: str, user_id:
             .all()
         )
         if not chunks:
+            _mark_source_status(session, source_id, SourceStatus.PROCESSED, error=None)
+            return 0
+
+        chunks = _cap_chunks_for_extract(chunks, get_settings().extract_max_chars)
+        if not chunks:
+            _mark_source_status(session, source_id, SourceStatus.PROCESSED, error=None)
             return 0
 
         ai = get_ai_provider()
@@ -252,11 +278,13 @@ def execute_extract_requirements_stage(source_id: str, project_id: str, user_id:
                 session.commit()
                 fresh_keys.add(key)
 
+        _mark_source_status(session, source_id, SourceStatus.PROCESSED, error=None)
         logger.info("arq:extract-reqs:done (source_id=%s, extracted=%d)", source_id, len(extracted))
         return len(extracted)
-    except Exception:
+    except Exception as exc:
         session.rollback()
         logger.exception("arq:extract-reqs:failed (source_id=%s)", source_id)
+        _mark_failed(session, source_id, str(exc))
         raise
     finally:
         session.close()
@@ -277,6 +305,10 @@ def execute_extract_tasks_stage(source_id: str, project_id: str, user_id: str) -
             .order_by(Chunk.position.asc())
             .all()
         )
+        if not chunks:
+            return 0
+
+        chunks = _cap_chunks_for_extract(chunks, get_settings().extract_max_chars)
         if not chunks:
             return 0
 
@@ -310,7 +342,7 @@ def execute_extract_tasks_stage(source_id: str, project_id: str, user_id: str) -
             if not valid_chunk_ids:
                 valid_chunk_ids = [chunks[0].id]
 
-            linked_req_id: Optional[str] = None
+            linked_req_id: str | None = None
             if item.linkedRequirementTitle:
                 linked_req_id = requirement_id_by_title.get(item.linkedRequirementTitle.lower().strip())
 
@@ -357,15 +389,53 @@ def execute_extract_tasks_stage(source_id: str, project_id: str, user_id: str) -
 
 
 def run_full_pipeline_sync(source_id: str, project_id: str, user_id: str) -> None:
-    """Run full 5-stage ingestion pipeline synchronously."""
+    """Run the ingestion pipeline synchronously.
+
+    Auto path stops after requirement extraction (source marked ``processed``).
+    Task extraction is deferred to on-demand generation.
+    """
     try:
         text = execute_ingest_stage(source_id, project_id, user_id)
         chunk_ids = execute_chunk_stage(source_id, project_id, user_id, text)
         execute_embed_stage(source_id, project_id, user_id, chunk_ids)
         execute_extract_requirements_stage(source_id, project_id, user_id)
-        execute_extract_tasks_stage(source_id, project_id, user_id)
-    except Exception as exc:
-        logger.exception("Full pipeline failed for source %s: %s", source_id, exc)
+    except Exception:
+        logger.exception("Full pipeline failed for source %s", source_id)
+
+
+def _run_pipeline_with_watchdog(source_id: str, project_id: str, user_id: str) -> None:
+    """Run the ingest pipeline under an overall deadline.
+
+    The frontend polls source status while it is ``processing``. If a stage
+    hangs (slow external provider, dead worker thread), the source would
+    otherwise stay ``processing`` forever and the UI would load indefinitely.
+    On timeout we mark the source ``failed`` with a clear message so the UI
+    stops polling and surfaces the error.
+    """
+    timeout = get_settings().ingest_timeout_seconds
+    worker = threading.Thread(
+        target=run_full_pipeline_sync,
+        args=(source_id, project_id, user_id),
+        daemon=True,
+    )
+    worker.start()
+    worker.join(timeout=timeout)
+
+    if worker.is_alive():
+        logger.error("ingest timed out after %ds (source_id=%s)", timeout, source_id)
+        session = SessionLocal()
+        try:
+            _mark_source_status(
+                session,
+                source_id,
+                SourceStatus.FAILED,
+                f"Ingest timed out after {timeout}s",
+            )
+        except Exception:
+            session.rollback()
+            logger.exception("could not mark ingest timeout (source_id=%s)", source_id)
+        finally:
+            session.close()
 
 
 def run_audit_sync(project_id: str, user_id: str, job_id: str) -> str:
@@ -379,7 +449,36 @@ def run_audit_sync(project_id: str, user_id: str, job_id: str) -> str:
         return run_id
     except Exception as exc:
         session.rollback()
-        logger.exception("Audit failed for project %s: %s", project_id, exc)
+        logger.exception("Audit failed for project %s", project_id)
+        set_job_status(job_id, "failed", error=str(exc))
+        raise
+    finally:
+        session.close()
+
+
+def run_task_generation_sync(project_id: str, user_id: str, job_id: str) -> int:
+    """Generate tasks for every processed source in a project, synchronously."""
+    session = SessionLocal()
+    try:
+        set_job_status(job_id, "processing")
+        source_ids = [
+            row[0]
+            for row in session.execute(
+                select(Source.id).where(
+                    Source.project_id == project_id,
+                    Source.user_id == user_id,
+                    Source.status == SourceStatus.PROCESSED,
+                )
+            ).all()
+        ]
+        total = 0
+        for source_id in source_ids:
+            total += execute_extract_tasks_stage(source_id, project_id, user_id)
+        set_job_status(job_id, "completed", result={"generated": total})
+        return total
+    except Exception as exc:
+        session.rollback()
+        logger.exception("Task generation failed for project %s", project_id)
         set_job_status(job_id, "failed", error=str(exc))
         raise
     finally:
@@ -389,7 +488,7 @@ def run_audit_sync(project_id: str, user_id: str, job_id: str) -> str:
 # ---- Async ARQ task functions ----
 
 async def arq_run_ingest(ctx: dict, source_id: str, project_id: str, user_id: str) -> None:
-    await asyncio.to_thread(run_full_pipeline_sync, source_id, project_id, user_id)
+    await asyncio.to_thread(_run_pipeline_with_watchdog, source_id, project_id, user_id)
 
 
 async def arq_run_audit(ctx: dict, project_id: str, user_id: str, job_id: str) -> str:
@@ -398,18 +497,26 @@ async def arq_run_audit(ctx: dict, project_id: str, user_id: str, job_id: str) -
 
 # ---- Helper Enqueue Functions (called by API service layer) ----
 
+def _spawn_background(fn: Callable[..., Any], *args: Any) -> None:
+    """Run a sync job in a daemon thread so the caller never blocks."""
+    threading.Thread(target=fn, args=args, daemon=True).start()
+
+
 def enqueue_ingest(source_id: str, project_id: str, user_id: str) -> None:
     """Enqueue full ingestion job in background thread + ARQ task."""
     job_id = f"ingest-{source_id}"
     set_job_status(job_id, "processing")
 
-    # Run in async event loop / thread pool immediately for instant local execution
+    # Run immediately off the caller's thread so the request returns fast and
+    # the frontend can poll job/source status for live progress. A watchdog
+    # enforces an overall pipeline deadline so a stuck source can never keep
+    # the UI loading forever.
     try:
         loop = asyncio.get_running_loop()
-        loop.run_in_executor(None, run_full_pipeline_sync, source_id, project_id, user_id)
+        loop.run_in_executor(None, _run_pipeline_with_watchdog, source_id, project_id, user_id)
     except RuntimeError:
         # No running loop (e.g. sync thread context)
-        asyncio.run(asyncio.to_thread(run_full_pipeline_sync, source_id, project_id, user_id))
+        _spawn_background(_run_pipeline_with_watchdog, source_id, project_id, user_id)
 
 
 def enqueue_audit(project_id: str, user_id: str) -> str:
@@ -421,7 +528,21 @@ def enqueue_audit(project_id: str, user_id: str) -> str:
         loop = asyncio.get_running_loop()
         loop.run_in_executor(None, run_audit_sync, project_id, user_id, job_id)
     except RuntimeError:
-        asyncio.run(asyncio.to_thread(run_audit_sync, project_id, user_id, job_id))
+        _spawn_background(run_audit_sync, project_id, user_id, job_id)
+
+    return job_id
+
+
+def enqueue_task_generation(project_id: str, user_id: str) -> str:
+    """Enqueue on-demand task generation. Returns job_id."""
+    job_id = str(uuid.uuid4())
+    set_job_status(job_id, "pending")
+
+    try:
+        loop = asyncio.get_running_loop()
+        loop.run_in_executor(None, run_task_generation_sync, project_id, user_id, job_id)
+    except RuntimeError:
+        _spawn_background(run_task_generation_sync, project_id, user_id, job_id)
 
     return job_id
 
@@ -429,7 +550,7 @@ def enqueue_audit(project_id: str, user_id: str) -> str:
 # ---- Arq WorkerSettings (for `arq app.workers.arq_worker.WorkerSettings`) ----
 
 class WorkerSettings:
-    functions = [arq_run_ingest, arq_run_audit]
+    functions: ClassVar[list[Any]] = [arq_run_ingest, arq_run_audit]
     redis_settings = RedisSettings(
         host=get_settings().redis_url.split("://")[-1].split(":")[0] if "://" in get_settings().redis_url else "localhost",
         port=int(get_settings().redis_url.split(":")[-1]) if ":" in get_settings().redis_url and get_settings().redis_url.split(":")[-1].isdigit() else 6379,

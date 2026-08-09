@@ -1,4 +1,5 @@
 export { PasteNotesForm } from "./PasteNotesForm";
+export { PasteDiffForm } from "./PasteDiffForm";
 export { SourceRow } from "./SourceRow";
 export { SourceStatusBadge } from "./SourceStatusBadge";
 export { SourcesEmptyHint, SourcesEmptyList } from "./EmptyState";

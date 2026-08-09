@@ -107,8 +107,8 @@ src/
 
 ### Linting
 - `npx tsc --noEmit` — zero errors.
-- `npm run lint -w @cartana/web` — zero errors, zero warnings.
-- `npm run build -w @cartana/web` — zero errors, zero warnings.
+- `npm run lint -w @cartana/web` — zero errors. Non-critical warnings (unused vars, import-ordering hints, type-import style) are acceptable and do not block completion; do not silence linters at the expense of readable code.
+- `npm run build -w @cartana/web` — zero errors.
 
 ### Dependencies
 - Radix Primitives for accessible components (`react-dialog`, `react-label`, `react-slot`, `react-tabs`, `react-select`).

@@ -6,7 +6,7 @@ Mirrors ``ChatMessage``, ``ChatCitation``, ``ChatResponse`` in
 """
 from __future__ import annotations
 
-from typing import Literal, Optional
+from typing import Literal
 
 from pydantic import BaseModel, ConfigDict, Field
 
@@ -22,7 +22,7 @@ class ChatCitation(BaseModel):
 class ChatMessage(BaseModel):
     role: Literal["user", "assistant"]
     content: str
-    citations: Optional[list[ChatCitation]] = None
+    citations: list[ChatCitation] | None = None
     createdAt: str
 
 
@@ -36,7 +36,7 @@ class ChatAsk(BaseModel):
     model_config = ConfigDict(extra="ignore")
 
     question: str = Field(min_length=1, max_length=4000)
-    history: Optional[list[ChatMessage]] = Field(default=None, max_length=40)
+    history: list[ChatHistoryItem] | None = Field(default=None, max_length=40)
 
 
 class ChatHistoryItem(BaseModel):

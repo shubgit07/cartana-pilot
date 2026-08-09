@@ -13,7 +13,6 @@ from app.providers.extractors.coverage_stub import coverage_stub
 from app.providers.extractors.requirement_extractor import extract_requirements_stub
 from app.providers.extractors.task_extractor import extract_tasks_stub
 
-
 # ---- Requirement extractor ----
 
 
@@ -117,3 +116,27 @@ def test_coverage_stub_unclear():
     ))
     assert len(result.judgments) == 1
     assert result.judgments[0].status == "unclear"
+
+
+# ---- Clean text & transcript preprocessor ----
+
+
+def test_clean_document_text_transcripts():
+    from app.core.clean_text import clean_document_text
+
+    raw_transcript = (
+        "Alex [00:12:34]: We must support single sign-on via SAML 2.0.\n"
+        "Speaker 1: (01:25) The system shall return JSON error payloads.\n"
+        "Page 1 of 5\n"
+        "Confidential & Proprietary\n"
+    )
+
+    cleaned = clean_document_text(raw_transcript)
+    assert "[00:12:34]" not in cleaned
+    assert "(01:25)" not in cleaned
+    assert "Alex:" not in cleaned
+    assert "Speaker 1:" not in cleaned
+    assert "Page 1 of 5" not in cleaned
+    assert "We must support single sign-on via SAML 2.0." in cleaned
+    assert "The system shall return JSON error payloads." in cleaned
+

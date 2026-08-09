@@ -1,11 +1,14 @@
 "use client";
 
-import { Upload } from "lucide-react";
+import * as React from "react";
+import { CheckCircle2, Loader2, Upload, XCircle } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { SourceFileInput } from "@/components/common/SourceFileInput";
+import { Button } from "@/components/ui/button";
 import { useToast } from "@/components/ui/toast";
-import { useSources } from "@/hooks/api";
+import { useSourceStatus, useSources } from "@/hooks/api";
 import { messageOf } from "@/hooks/api";
+import { cn } from "@/lib/cn";
 
 type Props = {
   projectId: string;
@@ -14,17 +17,79 @@ type Props = {
   onUploaded?: () => void;
 };
 
+/** Rotating copy shown while the pipeline runs — keeps the wait feeling alive. */
+const ENGAGEMENT_COPY = [
+  "Reading your document…",
+  "Hunting for requirements…",
+  "Chunking for context…",
+  "Connecting the dots…",
+  "Almost there…",
+];
+const COPY_INTERVAL_MS = 2600;
+
+type Phase = "idle" | "working" | "done" | "failed";
+
 export function UploadFileCard({ projectId, busy, onBusyChange, onUploaded }: Props) {
   const { uploadFile } = useSources(projectId);
   const { toast } = useToast();
+  const [sourceId, setSourceId] = React.useState<string | null>(null);
+  const [copyIndex, setCopyIndex] = React.useState(0);
+
+  const live = useSourceStatus(projectId, sourceId);
+
+  React.useEffect(() => {
+    setSourceId(null);
+    setCopyIndex(0);
+  }, [projectId]);
+
+  const phase: Phase =
+    sourceId === null || live === null
+      ? sourceId === null
+        ? "idle"
+        : "working"
+      : live.status === "failed"
+        ? "failed"
+        : live.status === "processed"
+          ? "done"
+          : "working";
+
+  const stage = live?.stage ?? "uploading";
+
+  React.useEffect(() => {
+    if (phase !== "working") return;
+    const timer = window.setInterval(() => {
+      setCopyIndex((i) => (i + 1) % ENGAGEMENT_COPY.length);
+    }, COPY_INTERVAL_MS);
+    return () => window.clearInterval(timer);
+  }, [phase]);
+
+  const progressPct = (() => {
+    if (phase === "done" || phase === "failed") return 100;
+    if (stage === "chunking" && live && live.chunksTotal > 0) {
+      return Math.round(30 + (live.embedded / live.chunksTotal) * 40);
+    }
+    return 20;
+  })();
+
+  const pillLabel =
+    phase === "working"
+      ? stage === "chunking"
+        ? "Chunking…"
+        : "Uploading…"
+      : phase === "done"
+        ? "Ready"
+        : phase === "failed"
+          ? "Upload failed"
+          : "Upload";
 
   async function handle(file: File) {
     onBusyChange(true);
     try {
-      await uploadFile(file);
+      const source = await uploadFile(file);
+      setSourceId(source.id);
+      setCopyIndex(0);
       onUploaded?.();
       toast({ title: "Upload started", description: `${file.name} is processing…` });
-
     } catch (e: unknown) {
       toast({
         title: "Upload failed",
@@ -54,10 +119,74 @@ export function UploadFileCard({ projectId, busy, onBusyChange, onUploaded }: Pr
         </CardDescription>
       </CardHeader>
       <CardContent>
-        <SourceFileInput onFile={handle} disabled={busy} loading={busy} />
-        <p className="mt-3 text-2xs leading-relaxed text-muted-foreground">
-          Files are chunked and embedded automatically — no extra step needed.
-        </p>
+        {phase === "idle" && (
+          <>
+            <SourceFileInput onFile={handle} disabled={busy} loading={busy} />
+            <p className="mt-3 text-2xs leading-relaxed text-muted-foreground">
+              Files are chunked and embedded automatically — no extra step needed. Tasks are
+              generated on demand in the Tasks tab.
+            </p>
+          </>
+        )}
+
+        {phase !== "idle" && (
+          <div className="space-y-3">
+            <div className="flex items-center justify-between gap-3">
+              <span
+                role="status"
+                aria-live="polite"
+                className={cn(
+                  "inline-flex h-9 items-center gap-2 rounded-md border px-3 text-sm font-medium",
+                  phase === "working" && "border-border bg-surface",
+                  phase === "done" &&
+                    "border-success/30 bg-success-soft text-success-soft-foreground",
+                  phase === "failed" &&
+                    "border-danger/30 bg-danger-soft text-danger-soft-foreground"
+                )}
+              >
+                {phase === "working" ? (
+                  <Loader2 className="size-4 motion-safe:animate-spin" aria-hidden="true" />
+                ) : phase === "done" ? (
+                  <CheckCircle2 className="size-4" aria-hidden="true" />
+                ) : (
+                  <XCircle className="size-4" aria-hidden="true" />
+                )}
+                {pillLabel}
+              </span>
+
+              {(phase === "done" || phase === "failed") && (
+                <Button size="sm" variant="outline" onClick={() => setSourceId(null)}>
+                  <Upload className="h-3.5 w-3.5" aria-hidden="true" />
+                  <span className="ml-1.5">Upload another</span>
+                </Button>
+              )}
+            </div>
+
+            <div
+              role="progressbar"
+              aria-label="Upload progress"
+              aria-valuemin={0}
+              aria-valuemax={100}
+              aria-valuenow={progressPct}
+              className="h-1.5 w-full overflow-hidden rounded-full bg-surface-sunken"
+            >
+              <div
+                className={cn(
+                  "h-full rounded-full transition-[width] duration-300 ease-out-expo",
+                  phase === "failed" ? "bg-danger" : "bg-primary"
+                )}
+                style={{ width: `${progressPct}%` }}
+              />
+            </div>
+
+            <p aria-live="polite" className="text-xs leading-relaxed text-muted-foreground">
+              {phase === "working" && ENGAGEMENT_COPY[copyIndex]}
+              {phase === "done" &&
+                "Requirements extracted — they're ready in the Requirements tab."}
+              {phase === "failed" && (live?.errorMessage ?? "Something went wrong. Try again.")}
+            </p>
+          </div>
+        )}
       </CardContent>
     </Card>
   );

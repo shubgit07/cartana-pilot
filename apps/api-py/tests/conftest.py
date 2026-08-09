@@ -7,9 +7,13 @@ SQLite dialect only.
 """
 from __future__ import annotations
 
+import os
+
+os.environ["LLM_PROVIDER"] = "stub"
+os.environ["EMBEDDING_PROVIDER"] = "stub"
+
 from collections.abc import Generator
-from datetime import datetime
-from typing import Optional
+from datetime import UTC, datetime
 
 import pytest
 from fastapi.testclient import TestClient
@@ -19,7 +23,8 @@ from sqlalchemy.ext.compiler import compiles
 from sqlalchemy.orm import Session, sessionmaker
 from sqlalchemy.pool import StaticPool
 
-from app.api.deps import get_current_user
+from app.api.deps import CurrentUser
+from app.config import get_settings
 from app.db.base import Base
 from app.db.models import Chunk, Project, Source, SourceKind, SourceStatus, User
 from app.db.session import get_db
@@ -37,9 +42,14 @@ SOURCE_KEYS = {
     "createdAt",
     "chunkCount",
 }
-JOB_STATUS_KEYS = {"sourceId", "status", "chunksTotal", "embedded", "errorMessage"}
+JOB_STATUS_KEYS = {"sourceId", "status", "stage", "chunksTotal", "embedded", "errorMessage"}
 
-DEV_USER = get_current_user()
+settings = get_settings()
+DEV_USER = CurrentUser(
+    id=settings.dev_user_id,
+    email=settings.dev_user_email,
+    name=settings.dev_user_name,
+)
 OTHER_USER_ID = "other-user"
 
 EMBEDDING_DIM = Chunk.__table__.c.embedding.type.dim
@@ -92,15 +102,15 @@ def seed_project(
     db: Session,
     *,
     name: str = "Seeded project",
-    description: Optional[str] = None,
-    user_id: Optional[str] = None,
-    created_at: Optional[datetime] = None,
+    description: str | None = None,
+    user_id: str | None = None,
+    created_at: datetime | None = None,
 ) -> Project:
     project = Project(
         user_id=user_id or DEV_USER.id,
         name=name,
         description=description,
-        created_at=created_at or datetime(2026, 7, 16, 10, 30, 0),
+        created_at=created_at or datetime(2026, 7, 16, 10, 30, 0, tzinfo=UTC),
     )
     db.add(project)
     db.commit()
@@ -117,8 +127,8 @@ def seed_source(
     status: SourceStatus = SourceStatus.PROCESSED,
     chunks: int = 0,
     embedded: int = 0,
-    error_message: Optional[str] = None,
-    created_at: Optional[datetime] = None,
+    error_message: str | None = None,
+    created_at: datetime | None = None,
 ) -> Source:
     source = Source(
         project_id=project.id,
@@ -130,7 +140,7 @@ def seed_source(
         mime_type="application/pdf" if kind is SourceKind.PDF else "text/plain",
         size_bytes=2048,
         error_message=error_message,
-        created_at=created_at or datetime(2026, 7, 16, 11, 0, 0),
+        created_at=created_at or datetime(2026, 7, 16, 11, 0, 0, tzinfo=UTC),
     )
     db.add(source)
     db.commit()

@@ -21,7 +21,7 @@ module.exports = {
           "Arial",
           "sans-serif",
         ],
-        serif: ["var(--font-serif)", "Plus Jakarta Sans", "ui-sans-serif", "system-ui", "sans-serif"],
+        serif: ["var(--font-serif)", "Poppins", "ui-sans-serif", "system-ui", "sans-serif"],
 
         mono: [
           "var(--font-mono)",

@@ -1,0 +1,56 @@
+diff --git a/app/core/security.py b/app/core/security.py
+new file mode 100644
+index 0000000..bbbbbbb
+--- /dev/null
++++ b/app/core/security.py
+@@ -0,0 +1,9 @@
++import hashlib
++
++
++def hash_password(password: str) -> str:
++    return hashlib.sha256(password.encode()).hexdigest()
++
++
++def verify_password(password: str, digest: str) -> bool:
++    return hash_password(password) == digest
+diff --git a/app/core/database.py b/app/core/database.py
+new file mode 100644
+index 0000000..ccccccc
+--- /dev/null
++++ b/app/core/database.py
+@@ -0,0 +1,12 @@
++import sqlite3
++from contextlib import contextmanager
++
++
++@contextmanager
++def db_session(path: str = "atlas.db"):
++    conn = sqlite3.connect(path)
++    try:
++        yield conn
++        conn.commit()
++    finally:
++        conn.close()
+diff --git a/app/core/config.py b/app/core/config.py
+new file mode 100644
+index 0000000..ddddddd
+--- /dev/null
++++ b/app/core/config.py
+@@ -0,0 +1,6 @@
++from os import getenv
++
++
++def settings():
++    return {
++        "database_path": getenv("ATLAS_DB_PATH", "atlas.db"),
++    }
+diff --git a/requirements.txt b/requirements.txt
+new file mode 100644
+index 0000000..eeeeeee
+--- /dev/null
++++ b/requirements.txt
+@@ -0,0 +1,4 @@
++fastapi>=0.100
++uvicorn>=0.23
++httpx>=0.24
++pydantic>=2.0

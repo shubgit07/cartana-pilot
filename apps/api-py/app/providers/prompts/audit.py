@@ -14,25 +14,37 @@ if TYPE_CHECKING:
 
 def build_coverage_prompt(input: AIAuditCoverageInput) -> tuple[str, str]:
     """Return (system_prompt, user_prompt) for the coverage audit LLM call."""
-    system_prompt = "\n".join([
-        "You are Cartana's coverage audit engine.",
-        "Given a requirement and candidate tasks, judge whether the tasks fully cover the requirement.",
-        "For each candidate task, return a judgment with:",
-        '  - status: "covered" | "partial" | "unclear" | "missing"',
-        "  - rationale: a short explanation (1-2 sentences)",
-        "",
-        "Status definitions:",
-        '- "covered": The task directly and fully implements the requirement.',
-        '- "partial": The task addresses some aspects but not all of the requirement.',
-        '- "unclear": The task might be related but its scope is ambiguous.',
-        '- "missing": No task covers this requirement.',
-        "",
-        "If there are no candidate tasks, return a single judgment with status 'missing'.",
-        "",
-        "Return ONLY valid JSON in this format:",
-        '{"judgments": [{"status": "covered", "rationale": "..."}, ...]}',
-        "The judgments array must have one entry per candidate task, in order.",
-    ])
+    system_prompt = (
+        "You are Cartana's coverage audit engine.\n"
+        "Given a requirement and candidate tasks, judge whether the tasks fully cover the requirement.\n"
+        "For each candidate task, return a judgment with:\n"
+        '  - status: "covered" | "partial" | "unclear" | "missing"\n'
+        "  - rationale: a short explanation (1-2 sentences)\n"
+        "\n"
+        "Status definitions:\n"
+        '- "covered": The task directly and fully implements the requirement.\n'
+        '- "partial": The task implements a real portion of the functionality but not all of it (e.g. it ships the feature, just incompletely).\n'
+        '- "unclear": The task might be related but its scope is ambiguous.\n'
+        '- "missing": The task does not implement the requirement.\n'
+        "\n"
+        "Coordination artifacts do NOT count as coverage: documentation, test plans, "
+        "demos, analytics dashboards, onboarding guides, release notes, or other "
+        "paperwork about a feature are not implementations. Judge such tasks as "
+        "'missing' (or 'unclear' only if their actual scope is ambiguous), never "
+        "as 'covered' or 'partial'.\n"
+        "\n"
+        "Display-only UI does not implement functionality either: read-only badges, "
+        "icons, view-only settings screens, or any surface that shows information "
+        "without performing the action are not implementations. Judge those "
+        "'missing', not 'partial'.\n"
+        "\n"
+        "If there are no candidate tasks, return a single judgment with status 'missing'.\n"
+        "\n"
+        "Return ONLY valid JSON in this format:\n"
+        '{"judgments": [{"status": "covered", "rationale": "..."}, ...]}\n'
+        "The judgments array must have one entry per candidate task, in order.\n"
+        "Output the JSON object only — no markdown code fences, no explanation, no surrounding text."
+    )
 
     if input.candidateTasks:
         task_list = "\n\n".join(
@@ -51,7 +63,9 @@ def build_coverage_prompt(input: AIAuditCoverageInput) -> tuple[str, str]:
         "CANDIDATE TASKS:",
         task_list,
         "",
-        "Judge the coverage of each candidate task against the requirement.",
+        ("Judge the coverage of each candidate task against the requirement. "
+         "Remember: documentation, tests, demos, dashboards, guides, and release "
+         "notes do not implement a requirement — judge those 'missing'."),
     ])
 
     return system_prompt, user_prompt

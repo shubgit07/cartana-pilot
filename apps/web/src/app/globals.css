@@ -241,6 +241,18 @@
     @apply text-2xs font-semibold uppercase tracking-[0.08em] text-muted-foreground;
   }
 
+  /* Lottie motion icon — scale to its box. Stroke/fill color is applied at
+     runtime by LottieIcon so it always follows the theme. */
+  .lottie-icon {
+    display: block;
+  }
+  .lottie-icon svg {
+    display: block;
+    width: 100%;
+    height: 100%;
+    overflow: visible;
+  }
+
   /* Subtle hairline separator */
   .hairline {
     @apply border-border/70;

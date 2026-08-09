@@ -34,4 +34,16 @@ export const tasksApi = {
       .then((r) => r.task),
   remove: (projectId: string, id: string) =>
     apiClient.request<void>(`/projects/${projectId}/tasks/${id}`, { method: "DELETE" }),
+  generate: (projectId: string) =>
+    apiClient
+      .request<{ jobId: string; status: string }>(`/projects/${projectId}/tasks/generate`, {
+        method: "POST",
+      })
+      .then((r) => r),
+  generateStatus: (projectId: string, jobId: string) =>
+    apiClient
+      .request<{ jobId: string; state: string; result?: unknown }>(
+        `/projects/${projectId}/tasks/generate/${jobId}/status`
+      )
+      .then((r) => r),
 };
