@@ -56,5 +56,6 @@ USER appuser
 
 EXPOSE 4000
 
-# Default command starts FastAPI with uvicorn (Worker overrides this)
-CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "4000"]
+# Default command runs migrations, then serves FastAPI.
+# Shell form so Render injects $PORT at runtime (defaults to 4000 locally).
+CMD ["sh", "-c", "alembic upgrade head && uvicorn app.main:app --host 0.0.0.0 --port ${PORT:-4000}"]
