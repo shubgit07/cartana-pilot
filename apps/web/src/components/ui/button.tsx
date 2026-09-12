@@ -5,9 +5,15 @@ import { Slot } from "@radix-ui/react-slot";
 import { cva, type VariantProps } from "class-variance-authority";
 import { cn } from "@/lib/cn";
 
+/**
+ * Linear app language (from the project-exports): pill buttons, lavender
+ * primary with lighter hover + focus-tinted press, charcoal secondary
+ * carried by a 1px hairline. Marketing-doc 8px radii do NOT apply here —
+ * the real app UI is pill everywhere.
+ */
 const buttonVariants = cva(
   cn(
-    "inline-flex select-none items-center justify-center gap-2 whitespace-nowrap rounded-md",
+    "inline-flex select-none items-center justify-center gap-2 whitespace-nowrap rounded-full",
     "text-sm font-medium leading-none",
     // Micro-interactions: colour, border, and elevation animate; transform gives press feedback.
     "transition-[background-color,border-color,color,box-shadow,transform] duration-150 ease-out-expo",
@@ -20,10 +26,10 @@ const buttonVariants = cva(
     variants: {
       variant: {
         default:
-          "bg-primary text-primary-foreground shadow-soft hover:bg-primary/90 hover:shadow-card",
+          "bg-primary text-primary-foreground shadow-soft hover:bg-primary-hover active:bg-primary-focus",
         secondary:
-          "bg-accent text-accent-foreground hover:bg-accent/70",
-        /** Pastel/tinted fill — Claude-style warmth in light, muted glow in dark. */
+          "border border-border bg-surface text-foreground hover:border-border-strong hover:bg-surface-hover",
+        /** Tinted lavender fill for low-emphasis actions on dark. */
         soft:
           "bg-primary-soft text-primary-soft-foreground hover:bg-primary-soft/70",
         outline:
@@ -37,8 +43,8 @@ const buttonVariants = cva(
       },
       size: {
         default: "h-9 px-4 py-2",
-        sm: "h-8 rounded-md px-3 text-xs",
-        lg: "h-10 rounded-md px-6",
+        sm: "h-8 px-3 text-xs",
+        lg: "h-10 px-6",
         icon: "h-9 w-9",
       },
     },

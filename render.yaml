@@ -1,0 +1,53 @@
+# Render Blueprint — Cartana API (test deploy).
+# Apply: Render dashboard → New → Blueprint → select this repo.
+# Secrets (sync: false) are filled once in the Render dashboard and never
+# committed. The frontend stays local for the flow test (CORS already
+# allows http://localhost:3000); the ARQ worker runs on your laptop
+# against the same cloud services (see README section below).
+services:
+  - type: web
+    name: cartana-api
+    runtime: docker
+    dockerContext: ./apps/api-py
+    dockerfilePath: ./apps/api-py/Dockerfile
+    healthCheckPath: /health
+    startCommand: sh -c "alembic upgrade head && uvicorn app.main:app --host 0.0.0.0 --port $PORT"
+    envVars:
+      - key: DATABASE_URL
+        sync: false
+      - key: REDIS_URL
+        sync: false
+      - key: UPSTASH_REDIS_REST_URL
+        sync: false
+      - key: UPSTASH_REDIS_REST_TOKEN
+        sync: false
+      - key: QDRANT_URL
+        sync: false
+      - key: QDRANT_API_KEY
+        sync: false
+      - key: CLOUDFLARE_ACCOUNT_ID
+        sync: false
+      - key: CLOUDFLARE_API_TOKEN
+        sync: false
+      - key: GEMINI_API_KEY
+        sync: false
+      - key: GROQ_API_KEY
+        sync: false
+      - key: CEREBRAS_API_KEY
+        sync: false
+      - key: LLM_PROVIDER
+        value: routing
+      - key: EMBEDDING_PROVIDER
+        value: cloudflare
+      - key: EMBEDDING_MODEL
+        value: "@cf/baai/bge-base-en-v1.5"
+      - key: EMBEDDING_DIM
+        value: 768
+      - key: QDRANT_COLLECTION_NAME
+        value: cartana_code_chunks
+      - key: STORAGE_DRIVER
+        value: local
+      - key: STORAGE_LOCAL_ROOT
+        value: ./storage
+      - key: LOG_LEVEL
+        value: info

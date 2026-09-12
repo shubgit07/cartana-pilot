@@ -20,13 +20,6 @@ export const sourcesApi = {
         body: JSON.stringify({ filename, content }),
       })
       .then((r) => r.source),
-  createFromDiff: (projectId: string, filename: string, content: string) =>
-    apiClient
-      .request<{ source: SourceSummary }>(`/projects/${projectId}/sources/diff`, {
-        method: "POST",
-        body: JSON.stringify({ filename, content }),
-      })
-      .then((r) => r.source),
   remove: (projectId: string, sourceId: string) =>
     apiClient.request<void>(`/projects/${projectId}/sources/${sourceId}`, { method: "DELETE" }),
   status: (projectId: string, sourceId: string) =>

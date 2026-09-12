@@ -8,25 +8,21 @@ export type ProjectTabProps = {
   [K in NavigationTab]: React.ReactNode;
 };
 
-/** Tab order is the intended left-to-right reading order of the workflow. */
+/** Tab order is the focused left-to-right workflow: Requirements -> Repository -> Compliance -> Chat */
 const TABS: ReadonlyArray<{ value: NavigationTab; label: string }> = [
-  { value: "overview", label: "Overview" },
-  { value: "sources", label: "Sources" },
   { value: "requirements", label: "Requirements" },
-  { value: "tasks", label: "Tasks" },
+  { value: "repository", label: "Repository" },
+  { value: "compliance", label: "Compliance" },
   { value: "chat", label: "Chat" },
-  { value: "audit", label: "Audit" },
 ];
 
 export function ProjectTabs({
   value,
   onValueChange,
-  sourceCount,
   panels,
 }: {
   value: NavigationTab;
   onValueChange: (next: NavigationTab) => void;
-  sourceCount: number;
   panels: ProjectTabProps;
 }) {
   return (
@@ -35,22 +31,15 @@ export function ProjectTabs({
       onValueChange={(v) => onValueChange(v as NavigationTab)}
       className="space-y-4"
     >
+      {/* Linear-style pill sub-tabs */}
       <TabsList
-        variant="underline"
+        variant="pill"
         aria-label="Project sections"
         className="scrollbar-thin w-full justify-start gap-1 overflow-x-auto"
       >
         {TABS.map((tab) => (
           <TabsTrigger key={tab.value} value={tab.value} className="shrink-0">
             {tab.label}
-            {tab.value === "sources" && (
-              <span
-                className="ml-1.5 rounded-md bg-surface-sunken px-1.5 py-0.5 text-2xs text-muted-foreground tabular"
-                aria-hidden="true"
-              >
-                {sourceCount}
-              </span>
-            )}
           </TabsTrigger>
         ))}
       </TabsList>

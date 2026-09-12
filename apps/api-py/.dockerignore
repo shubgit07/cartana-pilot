@@ -1,0 +1,14 @@
+# Keep the API image lean: never ship the local venv, caches, or secrets.
+.venv/
+__pycache__/
+*.pyc
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+storage/
+.env
+.env.*
+*.db
+*.sqlite*
+tests/
+benchmark/reports/

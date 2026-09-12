@@ -46,6 +46,7 @@ import type {
 
 type Props = {
   projectId: string;
+  externalBrief?: import("@cartana/shared").PRTrustBrief | null;
 };
 
 const VERDICT_STYLES: Record<
@@ -98,9 +99,13 @@ const TRUST_STYLES = {
   },
 };
 
-export function PRTrustBriefDashboard({ projectId }: Props) {
-  const { brief, fromCache, verifying, error, verify } = useVerifyPR(projectId);
+export function PRTrustBriefDashboard({ projectId, externalBrief = null }: Props) {
+  const { brief, fromCache, verifying, error, verify, loadBrief } = useVerifyPR(projectId);
   const { toast } = useToast();
+
+  React.useEffect(() => {
+    if (externalBrief) loadBrief(externalBrief);
+  }, [externalBrief, loadBrief]);
 
   const [copied, setCopied] = React.useState(false);
   const [inputTab, setInputTab] = React.useState<"paste_diff" | "github_pr">("paste_diff");

@@ -123,8 +123,8 @@ export function UploadFileCard({ projectId, busy, onBusyChange, onUploaded }: Pr
           <>
             <SourceFileInput onFile={handle} disabled={busy} loading={busy} />
             <p className="mt-3 text-2xs leading-relaxed text-muted-foreground">
-              Files are chunked and embedded automatically — no extra step needed. Tasks are
-              generated on demand in the Tasks tab.
+              Files are chunked and embedded automatically — no extra step needed.
+              Requirements are extracted automatically and listed below.
             </p>
           </>
         )}

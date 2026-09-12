@@ -25,10 +25,13 @@ logger = logging.getLogger(__name__)
 
 
 class EmbeddingProvider(Protocol):
-    """Swappable embedding provider interface."""
+    """Swappable embedding provider interface (identity members are read-only)."""
 
-    id: str
-    dim: int
+    @property
+    def id(self) -> str: ...
+
+    @property
+    def dim(self) -> int: ...
 
     def embed(self, texts: list[str]) -> list[list[float]]: ...
 

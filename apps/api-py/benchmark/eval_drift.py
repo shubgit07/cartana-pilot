@@ -76,7 +76,7 @@ def _build_provider():
 
 
 def _parse_diff(diff_raw: str) -> tuple[list[dict[str, Any]], str]:
-    from app.api.services.audit_service import parse_unified_diff
+    from app.core.diff_parser import parse_unified_diff
 
     parsed = parse_unified_diff(diff_raw)
     changed_files = [
@@ -93,7 +93,7 @@ def _run_verification(
     *,
     diagnostics: dict[str, Any] | None = None,
 ) -> list[dict[str, str]]:
-    from app.api.services.audit_service import _run_stage2_verification
+    from app.core.workflow.pr_verification_graph import _run_stage2_verification
 
     changed_files, compressed_text = _parse_diff(diff_raw)
     verdicts = _run_stage2_verification(

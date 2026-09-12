@@ -44,6 +44,7 @@ module.exports = {
           foreground: "hsl(var(--surface-foreground))",
           hover: "hsl(var(--surface-hover))",
           sunken: "hsl(var(--surface-sunken))",
+          raised: "hsl(var(--surface-raised))",
         },
         sidebar: {
           DEFAULT: "hsl(var(--sidebar))",
@@ -59,11 +60,14 @@ module.exports = {
         "popover-foreground": "hsl(var(--popover-foreground))",
         border: "hsl(var(--border))",
         "border-strong": "hsl(var(--border-strong))",
+        "border-tertiary": "hsl(var(--border-tertiary))",
         input: "hsl(var(--input))",
         ring: "hsl(var(--ring))",
 
         primary: "hsl(var(--primary))",
         "primary-foreground": "hsl(var(--primary-foreground))",
+        "primary-hover": "hsl(var(--primary-hover))",
+        "primary-focus": "hsl(var(--primary-focus))",
         "primary-soft": "hsl(var(--primary-soft))",
         "primary-soft-foreground": "hsl(var(--primary-soft-foreground))",
 
@@ -93,11 +97,15 @@ module.exports = {
         destructive: "hsl(var(--destructive))",
         "destructive-foreground": "hsl(var(--destructive-foreground))",
       },
+      // Linear radius scale: buttons/inputs 8px, cards 12px,
+      // screenshot panels 16px, pills 9999px.
       borderRadius: {
-        xl: "calc(var(--radius) + 6px)",
-        lg: "var(--radius)",
-        md: "calc(var(--radius) - 2px)",
-        sm: "calc(var(--radius) - 4px)",
+        xs: "4px",
+        sm: "6px",
+        md: "8px",
+        lg: "12px",
+        xl: "16px",
+        xxl: "24px",
       },
       boxShadow: {
         soft: "var(--shadow-soft)",

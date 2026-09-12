@@ -1,40 +1,28 @@
 "use client";
 
 import { ProjectDetailPage } from "@/features/project-detail";
-import { SourcesPanel } from "@/features/sources";
 import { RequirementsPanel } from "@/features/requirements";
-import { TasksPanel } from "@/features/tasks";
-import { ChatPanel } from "@/features/chat";
-import { AuditPanel } from "@/features/audit";
+import { RepositoryPanel } from "@/features/repository";
+import { CompliancePanel } from "@/features/compliance";
+import { ChatComingSoon } from "@/features/chat";
+import { ReadId } from "./read-id";
 
 export default function Page() {
   return (
     <ProjectDetailPage
       panels={{
-        sources: <SourcesById />,
         requirements: <RequirementsById />,
-        tasks: <TasksById />,
+        repository: <RepositoryById />,
+        compliance: <ComplianceById />,
         chat: <ChatById />,
-        audit: <AuditById />,
       }}
     />
   );
 }
 
 // Small adapters — the panel components bind the projectId resolved by
-// ProjectDetailPage's useParams() when they mount. We use a thin wrapper
-// that calls a child component to forward the id. To keep this lean, we
-// use a client component that reads useParams.
+// ProjectDetailPage's useParams() when they mount.
 
-import { ReadId } from "./read-id";
-
-function SourcesById() {
-  return (
-    <ReadId>
-      {(id) => <SourcesPanel projectId={id} />}
-    </ReadId>
-  );
-}
 function RequirementsById() {
   return (
     <ReadId>
@@ -42,24 +30,23 @@ function RequirementsById() {
     </ReadId>
   );
 }
-function TasksById() {
+
+function RepositoryById() {
   return (
     <ReadId>
-      {(id) => <TasksPanel projectId={id} />}
+      {(id) => <RepositoryPanel projectId={id} />}
     </ReadId>
   );
 }
+
+function ComplianceById() {
+  return (
+    <ReadId>
+      {(id) => <CompliancePanel projectId={id} />}
+    </ReadId>
+  );
+}
+
 function ChatById() {
-  return (
-    <ReadId>
-      {(id) => <ChatPanel projectId={id} />}
-    </ReadId>
-  );
-}
-function AuditById() {
-  return (
-    <ReadId>
-      {(id) => <AuditPanel projectId={id} />}
-    </ReadId>
-  );
+  return <ChatComingSoon />;
 }

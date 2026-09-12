@@ -61,7 +61,8 @@ export const TabsTrigger = React.forwardRef<
         variant === "pill" && [
           "rounded-md px-3 py-1",
           "hover:text-foreground",
-          "data-[state=active]:bg-surface data-[state=active]:text-foreground data-[state=active]:shadow-soft",
+          // Active pill matches the sidebar selected row: surface-2 #141516.
+          "data-[state=active]:bg-surface-hover data-[state=active]:text-foreground data-[state=active]:shadow-soft",
         ],
         className
       )}

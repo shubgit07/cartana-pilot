@@ -7,11 +7,15 @@ import { TOAST_DURATION_MS } from "@/lib/constants";
 
 export type ToastVariant = "default" | "destructive";
 
+export type ToastAction = { label: string; href: string };
+
 export type ToastInput = {
   title?: string;
   description?: string;
   variant?: ToastVariant;
   durationMs?: number;
+  /** Optional link action (e.g. "View project"). */
+  action?: ToastAction;
 };
 
 type Toast = {
@@ -21,6 +25,7 @@ type Toast = {
   description?: string;
   variant?: ToastVariant;
   durationMs?: number;
+  action?: ToastAction;
 };
 
 type ToastContextValue = {
@@ -93,8 +98,9 @@ function ToastCard({
   return (
     <div
       className={cn(
-        "pointer-events-auto relative overflow-hidden rounded-lg border border-border",
-        "bg-popover/95 p-3.5 pl-4 text-popover-foreground shadow-overlay backdrop-blur-sm",
+        // Linear toast: lifted surface, 16px radius, hairline border.
+        "pointer-events-auto relative overflow-hidden rounded-xl border border-border",
+        "bg-popover p-3.5 pl-4 text-popover-foreground shadow-overlay",
         "animate-slide-up",
         isDestructive && "border-danger/40"
       )}
@@ -107,21 +113,31 @@ function ToastCard({
           isDestructive ? "bg-danger" : "bg-primary"
         )}
       />
-      <div className="flex items-start gap-3">
-        <div className="flex-1 space-y-0.5">
-          {toast.title && (
-            <div className="text-sm font-medium leading-snug tracking-tight">{toast.title}</div>
-          )}
-          {toast.description && (
-            <div className="text-xs leading-relaxed text-muted-foreground">{toast.description}</div>
-          )}
-        </div>
+        <div className="flex items-start gap-3">
+          <div className="flex-1 space-y-0.5">
+            {toast.title && (
+              <div className="text-sm font-medium leading-snug tracking-tight">{toast.title}</div>
+            )}
+            {toast.description && (
+              <div className="text-xs leading-relaxed text-muted-foreground">
+                {toast.description}
+              </div>
+            )}
+            {toast.action && (
+              <a
+                href={toast.action.href}
+                className="inline-block pt-0.5 text-xs font-medium text-primary underline-offset-4 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/70"
+              >
+                {toast.action.label}
+              </a>
+            )}
+          </div>
         <button
           type="button"
           onClick={() => onDismiss(toast.id)}
           aria-label="Dismiss notification"
           className={cn(
-            "-m-1 grid size-7 shrink-0 place-items-center rounded-md text-muted-foreground",
+            "-m-1 grid size-7 shrink-0 place-items-center rounded-full text-muted-foreground",
             "transition-colors duration-150 hover:bg-surface-hover hover:text-foreground",
             "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/70 focus-visible:ring-offset-2 focus-visible:ring-offset-popover"
           )}

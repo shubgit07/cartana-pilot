@@ -1,0 +1,137 @@
+services:
+  postgres:
+    image: pgvector/pgvector:pg16
+    container_name: cartana-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-cartana}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-cartana_secure_password}
+      POSTGRES_DB: ${POSTGRES_DB:-cartana}
+    volumes:
+      - cartana-postgres-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-cartana} -d ${POSTGRES_DB:-cartana}"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+    networks:
+      - cartana-network
+
+  redis:
+    image: redis:7-alpine
+    container_name: cartana-redis
+    restart: unless-stopped
+    volumes:
+      - cartana-redis-data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+    networks:
+      - cartana-network
+
+  api:
+    build:
+      context: ./apps/api-py
+      dockerfile: Dockerfile
+    container_name: cartana-api
+    restart: unless-stopped
+    command: sh -c "alembic upgrade head && uvicorn app.main:app --host 0.0.0.0 --port 4000"
+    environment:
+      NODE_ENV: production
+      DATABASE_URL: postgresql://${POSTGRES_USER:-cartana}:${POSTGRES_PASSWORD:-cartana_secure_password}@postgres:5432/${POSTGRES_DB:-cartana}
+      REDIS_URL: redis://redis:6379
+      STORAGE_DRIVER: ${STORAGE_DRIVER:-s3}
+      AWS_ACCESS_KEY_ID: ${AWS_ACCESS_KEY_ID}
+      AWS_SECRET_ACCESS_KEY: ${AWS_SECRET_ACCESS_KEY}
+      AWS_REGION: ${AWS_REGION:-us-east-1}
+      AWS_S3_BUCKET_NAME: ${AWS_S3_BUCKET_NAME}
+      EMBEDDING_PROVIDER: ${EMBEDDING_PROVIDER:-cloudflare}
+      CLOUDFLARE_ACCOUNT_ID: ${CLOUDFLARE_ACCOUNT_ID}
+      CLOUDFLARE_API_TOKEN: ${CLOUDFLARE_API_TOKEN}
+      LLM_PROVIDER: ${LLM_PROVIDER:-routing}
+      GEMINI_API_KEY: ${GEMINI_API_KEY}
+      GROQ_API_KEY: ${GROQ_API_KEY}
+      CEREBRAS_API_KEY: ${CEREBRAS_API_KEY}
+      UPSTASH_REDIS_REST_URL: ${UPSTASH_REDIS_REST_URL}
+      UPSTASH_REDIS_REST_TOKEN: ${UPSTASH_REDIS_REST_TOKEN}
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    networks:
+      - cartana-network
+
+  worker:
+    build:
+      context: ./apps/api-py
+      dockerfile: Dockerfile
+    container_name: cartana-worker
+    restart: unless-stopped
+    command: python -m arq app.workers.arq_worker.WorkerSettings
+    environment:
+      NODE_ENV: production
+      DATABASE_URL: postgresql://${POSTGRES_USER:-cartana}:${POSTGRES_PASSWORD:-cartana_secure_password}@postgres:5432/${POSTGRES_DB:-cartana}
+      REDIS_URL: redis://redis:6379
+      STORAGE_DRIVER: ${STORAGE_DRIVER:-s3}
+      AWS_ACCESS_KEY_ID: ${AWS_ACCESS_KEY_ID}
+      AWS_SECRET_ACCESS_KEY: ${AWS_SECRET_ACCESS_KEY}
+      AWS_REGION: ${AWS_REGION:-us-east-1}
+      AWS_S3_BUCKET_NAME: ${AWS_S3_BUCKET_NAME}
+      EMBEDDING_PROVIDER: ${EMBEDDING_PROVIDER:-cloudflare}
+      CLOUDFLARE_ACCOUNT_ID: ${CLOUDFLARE_ACCOUNT_ID}
+      CLOUDFLARE_API_TOKEN: ${CLOUDFLARE_API_TOKEN}
+      LLM_PROVIDER: ${LLM_PROVIDER:-routing}
+      GEMINI_API_KEY: ${GEMINI_API_KEY}
+      GROQ_API_KEY: ${GROQ_API_KEY}
+      CEREBRAS_API_KEY: ${CEREBRAS_API_KEY}
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    networks:
+      - cartana-network
+
+  web:
+    build:
+      context: .
+      dockerfile: apps/web/Dockerfile
+    container_name: cartana-web
+    restart: unless-stopped
+    environment:
+      NODE_ENV: production
+      NEXT_PUBLIC_API_BASE_URL: /api
+    depends_on:
+      - api
+    networks:
+      - cartana-network
+
+  nginx:
+    image: nginx:alpine
+    container_name: cartana-nginx
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./nginx/nginx.conf:/etc/nginx/nginx.conf:ro
+      - certbot-etc:/etc/letsencrypt
+      - certbot-var:/var/www/certbot
+    depends_on:
+      - web
+      - api
+    networks:
+      - cartana-network
+
+networks:
+  cartana-network:
+    driver: bridge
+
+volumes:
+  cartana-postgres-data:
+  cartana-redis-data:
+  certbot-etc:
+  certbot-var:

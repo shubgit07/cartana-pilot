@@ -73,8 +73,11 @@ class FakeStructuredProvider:
 def fake_llm_provider(monkeypatch):
     fake = FakeStructuredProvider()
     monkeypatch.setattr("app.api.services.input_service.get_ai_provider", lambda: fake)
-    monkeypatch.setattr("app.api.services.audit_service.get_ai_provider", lambda: fake)
+    monkeypatch.setattr("app.api.services.pr_trust_service.get_ai_provider", lambda: fake)
+    monkeypatch.setattr("app.core.workflow.pr_verification_graph.get_ai_provider", lambda: fake)
+    monkeypatch.setattr("app.providers.ai_provider.get_ai_provider", lambda: fake)
     return fake
+
 
 
 def test_verify_pr_initial_run_and_cache_hit(client, db_session, fake_llm_provider):
@@ -130,9 +133,9 @@ def test_verify_pr_fails_loudly_without_llm(client, db_session, monkeypatch):
         def chat(self, input):
             return type("Out", (), {"answer": "no structured output"})()
 
-    from app.api.services import audit_service, input_service
+    from app.api.services import input_service, pr_trust_service
 
-    monkeypatch.setattr(audit_service, "get_ai_provider", lambda: NoLLMProvider())
+    monkeypatch.setattr(pr_trust_service, "get_ai_provider", lambda: NoLLMProvider())
     monkeypatch.setattr(input_service, "get_ai_provider", lambda: NoLLMProvider())
 
     resp = client.post(
@@ -160,9 +163,9 @@ def test_verify_pr_does_not_use_heuristics_on_unparseable_json(client, db_sessio
         def chat(self, input):
             return type("Out", (), {"answer": "also not json"})()
 
-    from app.api.services import audit_service, input_service
+    from app.api.services import input_service, pr_trust_service
 
-    monkeypatch.setattr(audit_service, "get_ai_provider", lambda: GarbageProvider())
+    monkeypatch.setattr(pr_trust_service, "get_ai_provider", lambda: GarbageProvider())
     monkeypatch.setattr(input_service, "get_ai_provider", lambda: GarbageProvider())
 
     resp = client.post(

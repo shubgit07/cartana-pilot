@@ -18,7 +18,14 @@ from app.api.schemas.requirement import (
 )
 from app.api.services.project_service import get_owned_project
 from app.core.errors import NotFoundError
-from app.db.models import Chunk, Requirement, RequirementChunk, Source
+from app.db.models import (
+    Chunk,
+    Requirement,
+    RequirementChunk,
+    RequirementOrigin,
+    RequirementState,
+    Source,
+)
 
 
 def _load_chunk_links(
@@ -134,9 +141,9 @@ def update_requirement(
         row.title = changes["title"]
     if "description" in changes:
         row.description = changes["description"]
-    row.state = final_state
+    row.state = RequirementState(final_state)
     if row.origin.value == "ai" and touched:
-        row.origin = "user"
+        row.origin = RequirementOrigin.USER
 
     db.commit()
     db.refresh(row)

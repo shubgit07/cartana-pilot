@@ -4,119 +4,56 @@
 
 @layer base {
   /*
-   * Light theme — Claude-inspired.
-   * Warm off-white canvas, sand/clay accents, gentle borders, soft shadows.
+   * Linear dark-only system (Step 1 of UI revamp).
+   * Canvas #010102 with a 4-step surface ladder; hierarchy comes from
+   * surfaces + 1px hairlines, never drop shadows. Lavender #5e6ad2 is the
+   * single chromatic accent (brand mark, primary CTA, focus ring).
+   * Light theme is parked: :root carries the dark tokens directly so there
+   * is no light flash; `.dark` below inherits them (ThemeToggle parked later).
    */
   :root {
-    /* Canvas & surfaces */
-    --background: 40 23% 97%;
-    --foreground: 40 6% 16%;
+    /* Canvas & surfaces — Linear surface ladder */
+    --background: 240 33% 0.6%; /* canvas #010102 */
+    --foreground: 180 7% 97%; /* ink #f7f8f8 */
 
-    --surface: 0 0% 100%;
-    --surface-foreground: 40 6% 16%;
-    --surface-hover: 40 20% 96%;
-    --surface-sunken: 40 18% 94%;
+    --surface: 210 6% 6%; /* surface-1 #0f1011 */
+    --surface-foreground: 180 7% 97%;
+    --surface-hover: 210 5% 8%; /* surface-2 #141516 */
+    --surface-sunken: 240 33% 0.6%; /* sunken recedes to canvas */
+    --surface-raised: 210 4% 10%; /* surface-3 #18191a — menus, dropdowns */
 
-    --sidebar: 40 20% 95%;
-    --sidebar-foreground: 40 6% 26%;
-    --sidebar-hover: 40 22% 92%;
+    --sidebar: 240 33% 0.6%;
+    --sidebar-foreground: 219 6% 57%; /* ink-subtle #8a8f98 */
+    --sidebar-hover: 210 6% 6%;
 
-    --card: 0 0% 100%;
-    --card-foreground: 40 6% 16%;
-    --popover: 0 0% 100%;
-    --popover-foreground: 40 6% 16%;
+    --card: 210 6% 6%;
+    --card-foreground: 180 7% 97%;
+    --popover: 210 4% 10%;
+    --popover-foreground: 180 7% 97%;
 
-    --muted: 40 18% 93%;
-    --muted-foreground: 40 5% 42%;
+    --muted: 210 5% 8%;
+    --muted-foreground: 219 6% 57%;
 
-    --border: 40 18% 87%;
-    --border-strong: 40 14% 79%;
-    --input: 40 18% 87%;
+    /* Hairlines — deliberately blue-tinted grays from the Linear spec */
+    --border: 223 9% 15%; /* hairline #23252a */
+    --border-strong: 240 5% 22%; /* hairline-strong #34343a */
+    --border-tertiary: 240 5% 25%; /* hairline-tertiary #3e3e44 */
+    --input: 223 9% 15%;
 
-    /* Brand — Claude clay / terracotta */
-    --primary: 15 55% 52%;
-    --primary-foreground: 40 30% 98%;
-    --primary-soft: 18 55% 94%;
-    --primary-soft-foreground: 15 48% 34%;
+    /* Brand — Linear lavender. Scarce by design. */
+    --primary: 234 56% 60%; /* #5e6ad2 */
+    --primary-foreground: 0 0% 100%;
+    --primary-hover: 234 100% 75%; /* #828fff */
+    --primary-focus: 234 56% 59%; /* #5e69d1 */
+    --primary-soft: 234 40% 18%;
+    --primary-soft-foreground: 234 100% 82%;
 
-    --accent: 38 30% 92%;
-    --accent-foreground: 30 12% 24%;
+    --accent: 210 5% 8%;
+    --accent-foreground: 180 7% 97%;
 
-    /* Semantic — soft, muted, pastel */
-    --success: 152 34% 36%;
-    --success-foreground: 150 30% 98%;
-    --success-soft: 150 34% 92%;
-    --success-soft-foreground: 154 40% 24%;
-
-    --warning: 32 62% 45%;
-    --warning-foreground: 40 30% 98%;
-    --warning-soft: 40 62% 92%;
-    --warning-soft-foreground: 28 55% 28%;
-
-    --info: 212 40% 47%;
-    --info-foreground: 210 30% 98%;
-    --info-soft: 208 46% 93%;
-    --info-soft-foreground: 214 42% 30%;
-
-    --danger: 4 58% 50%;
-    --danger-foreground: 10 30% 98%;
-    --danger-soft: 8 62% 94%;
-    --danger-soft-foreground: 4 50% 34%;
-
-    --destructive: 4 58% 50%;
-    --destructive-foreground: 10 30% 98%;
-
-    --ring: 15 50% 54%;
-
-    /* Shape & depth */
-    --radius: 0.625rem;
-    --shadow-color: 30 12% 20%;
-    --shadow-soft: 0 1px 2px hsl(var(--shadow-color) / 0.05);
-    --shadow-card: 0 1px 2px hsl(var(--shadow-color) / 0.04), 0 1px 3px hsl(var(--shadow-color) / 0.05);
-    --shadow-raised: 0 2px 4px hsl(var(--shadow-color) / 0.05), 0 4px 12px hsl(var(--shadow-color) / 0.07);
-    --shadow-overlay: 0 8px 20px hsl(var(--shadow-color) / 0.1), 0 24px 48px hsl(var(--shadow-color) / 0.12);
-  }
-
-  /*
-   * Dark theme — Notion-inspired canvas with a luminous periwinkle-blue accent.
-   * Near-black surfaces, warm gray borders, minimal elevation, editorial calm.
-   */
-  .dark {
-    --background: 0 0% 10%;
-    --foreground: 40 8% 91%;
-
-    --surface: 0 0% 13%;
-    --surface-foreground: 40 8% 91%;
-    --surface-hover: 30 3% 16%;
-    --surface-sunken: 0 0% 8%;
-
-    --sidebar: 0 0% 9%;
-    --sidebar-foreground: 35 5% 72%;
-    --sidebar-hover: 30 3% 15%;
-
-    --card: 0 0% 13%;
-    --card-foreground: 40 8% 91%;
-    --popover: 0 0% 14%;
-    --popover-foreground: 40 8% 91%;
-
-    --muted: 30 3% 16%;
-    --muted-foreground: 35 4% 60%;
-
-    /* Warm gray borders — deliberately not blue-tinted, so the accent reads louder */
-    --border: 30 4% 20%;
-    --border-strong: 30 4% 27%;
-    --input: 30 4% 22%;
-
-    /* Brand — periwinkle blue. Luminous on near-black, never neon. */
-    --primary: 217 62% 63%;
-    --primary-foreground: 220 40% 10%;
-    --primary-soft: 220 30% 19%;
-    --primary-soft-foreground: 216 68% 80%;
-
-    --accent: 30 4% 18%;
-    --accent-foreground: 40 8% 91%;
-
-    --success: 152 30% 45%;
+    /* Semantic — the doc ships only success green for marketing. Warning /
+       danger are a minimal documented extension for audit verdict states. */
+    --success: 134 62% 40%; /* #27a644 */
     --success-foreground: 150 25% 10%;
     --success-soft: 152 20% 17%;
     --success-soft-foreground: 150 34% 70%;
@@ -126,7 +63,6 @@
     --warning-soft: 34 24% 18%;
     --warning-soft-foreground: 38 48% 72%;
 
-    /* Shifted cyan-ward so semantic "info" stays distinct from the periwinkle brand */
     --info: 194 42% 52%;
     --info-foreground: 195 25% 10%;
     --info-soft: 194 24% 18%;
@@ -140,13 +76,27 @@
     --destructive: 4 50% 52%;
     --destructive-foreground: 5 25% 96%;
 
-    --ring: 217 62% 63%;
+    --ring: 234 56% 59%;
 
+    /* Shape & depth — Linear resists shadows; lifted panels get a faint
+       top-edge highlight instead ("pixel rendered" feel). */
+    --radius: 0.5rem;
     --shadow-color: 0 0% 0%;
-    --shadow-soft: 0 1px 2px hsl(var(--shadow-color) / 0.3);
-    --shadow-card: 0 1px 2px hsl(var(--shadow-color) / 0.25);
-    --shadow-raised: 0 2px 6px hsl(var(--shadow-color) / 0.35);
-    --shadow-overlay: 0 12px 32px hsl(var(--shadow-color) / 0.5);
+    --shadow-soft: inset 0 1px 0 hsl(0 0% 100% / 0.04);
+    --shadow-card: inset 0 1px 0 hsl(0 0% 100% / 0.04);
+    --shadow-raised:
+      inset 0 1px 0 hsl(0 0% 100% / 0.06), 0 8px 24px hsl(0 0% 0% / 0.35);
+    --shadow-overlay:
+      0 0 0 1px hsl(240 5% 22%), 0 24px 64px hsl(0 0% 0% / 0.6);
+  }
+
+  /*
+   * Dark-only: inherits :root tokens above. Kept as a selector so the
+   * `dark` class (ThemeProvider / themeScript) keeps working until the
+   * ThemeToggle is parked in the Shell step.
+   */
+  .dark {
+    color-scheme: dark;
   }
 
   html,
@@ -155,7 +105,7 @@
   }
 
   html {
-    color-scheme: light;
+    color-scheme: dark;
     -webkit-tap-highlight-color: transparent;
   }
 
@@ -169,6 +119,8 @@
       "Helvetica Neue", Arial, sans-serif;
     font-feature-settings: "cv11", "ss01";
     text-rendering: optimizeLegibility;
+    /* Linear body holds -0.05px tracking (≈ -0.003em at 16px). */
+    letter-spacing: -0.003em;
   }
 
   /* Type scale — clear hierarchy, editorial rhythm */
@@ -236,9 +188,10 @@
     @apply focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/70 focus-visible:ring-offset-2 focus-visible:ring-offset-background;
   }
 
-  /* Small uppercase section label — Notion-style metadata */
+  /* Small uppercase section label — Linear eyebrow uses +0.4px tracking. */
   .eyebrow {
-    @apply text-2xs font-semibold uppercase tracking-[0.08em] text-muted-foreground;
+    @apply text-2xs font-semibold uppercase text-muted-foreground;
+    letter-spacing: 0.4px;
   }
 
   /* Lottie motion icon — scale to its box. Stroke/fill color is applied at

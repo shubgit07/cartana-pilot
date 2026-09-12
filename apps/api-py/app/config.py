@@ -22,8 +22,13 @@ class Settings(BaseSettings):
     redis_url: str = "redis://localhost:6379"
 
     # Storage
-    storage_driver: Literal["local"] = "local"
+    storage_driver: Literal["local", "s3"] = "local"
     storage_local_root: str = "./storage"
+    aws_access_key_id: str | None = None
+    aws_secret_access_key: str | None = None
+    aws_region: str = "us-east-1"
+    aws_s3_bucket_name: str | None = None
+    aws_s3_endpoint_url: str | None = None
 
     # Embedding provider (EMBEDDING_DIM is locked at 768 per the agreed schema decision)
     embedding_provider: Literal["stub", "cloudflare"] = "stub"
@@ -79,8 +84,20 @@ class Settings(BaseSettings):
 
     @property
     def sqlalchemy_database_url(self) -> str:
-        """Rewrite the shared postgresql:// URL for the psycopg v3 SQLAlchemy driver."""
-        url = self.database_url
+        """Rewrite the shared postgresql:// URL for the psycopg v3 SQLAlchemy driver.
+
+        Strips legacy Prisma query params (e.g. ``?schema=public``) which
+        psycopg rejects with ``invalid connection option "schema"``, while
+        preserving driver params Neon/pooled URLs rely on (``sslmode``,
+        ``channel_binding``, ...).
+        """
+        from urllib.parse import parse_qsl, urlencode, urlsplit, urlunsplit
+
+        scheme, netloc, path, query, fragment = urlsplit(self.database_url)
+        if query:
+            kept = [(k, v) for k, v in parse_qsl(query) if k.lower() != "schema"]
+            query = urlencode(kept)
+        url = urlunsplit((scheme, netloc, path, query, fragment))
         if url.startswith("postgresql://"):
             return url.replace("postgresql://", "postgresql+psycopg://", 1)
         return url

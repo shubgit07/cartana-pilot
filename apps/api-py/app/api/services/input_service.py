@@ -14,7 +14,7 @@ from typing import Any
 
 from app.core.diff_parser import ParsedDiffSummary, parse_unified_diff
 from app.core.errors import LLMServiceError
-from app.core.extract_text import extract_text
+from app.core.extract_text import SourceKindType, extract_text
 from app.providers.ai_provider import get_ai_provider
 
 logger = logging.getLogger(__name__)
@@ -167,7 +167,8 @@ def process_requirement_file_input(
     file_bytes: bytes, filename: str, file_kind: str = "text", use_llm: bool = True
 ) -> tuple[str, list[ParsedRequirementItem]]:
     """Extract raw text from PDF/TXT/MD file buffer and parse discrete requirements."""
-    raw_text = extract_text(file_bytes, file_kind if file_kind in ("pdf", "text") else "text")
+    kind: SourceKindType = "pdf" if file_kind == "pdf" else "text"
+    raw_text = extract_text(file_bytes, kind)
     if use_llm:
         requirements = extract_requirements_with_llm(raw_text)
     else:

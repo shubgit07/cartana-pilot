@@ -58,7 +58,8 @@ class LLMServiceError(AppError):
         super().__init__(message, status_code=502, code=code)
 
 
-async def app_error_handler(request: Request, exc: AppError) -> JSONResponse:
+async def app_error_handler(request: Request, exc: Exception) -> JSONResponse:
+    assert isinstance(exc, AppError)  # Registered for AppError only.
     return JSONResponse(
         status_code=exc.status_code,
         content={"error": {"code": exc.code, "message": exc.message}},

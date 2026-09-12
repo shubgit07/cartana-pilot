@@ -10,10 +10,14 @@ import enum
 from datetime import UTC, datetime
 from uuid import uuid4
 
-from pgvector.sqlalchemy import Vector
+from pgvector.sqlalchemy import Vector  # type: ignore[import-untyped]
 from sqlalchemy import (
+    JSON,
+    Boolean,
+    CheckConstraint,
     DateTime,
     Enum,
+    Float,
     ForeignKey,
     Index,
     Integer,
@@ -62,43 +66,49 @@ class RequirementState(str, enum.Enum):
     EDITED = "edited"
 
 
-class TaskOrigin(str, enum.Enum):
-    AI = "ai"
-    USER = "user"
+class RepositoryProvider(str, enum.Enum):
+    GITHUB = "github"
+    GITLAB = "gitlab"
+    BITBUCKET = "bitbucket"
+    GENERIC_GIT = "generic_git"
 
 
-class TaskState(str, enum.Enum):
-    SUGGESTED = "suggested"
-    ACCEPTED = "accepted"
-    REJECTED = "rejected"
-    EDITED = "edited"
+class RunStatus(str, enum.Enum):
+    PENDING = "pending"
+    RUNNING = "running"
+    SUCCEEDED = "succeeded"
+    FAILED = "failed"
+    CANCELLED = "cancelled"
 
 
-class CoverageStatus(str, enum.Enum):
-    COVERED = "covered"
-    PARTIAL = "partial"
-    UNCLEAR = "unclear"
-    MISSING = "missing"
+class SnapshotKind(str, enum.Enum):
+    COMMIT = "commit"
+    PULL_REQUEST = "pull_request"
 
 
-class CoverageOrigin(str, enum.Enum):
-    AI_SUGGESTED = "ai_suggested"
-    USER_CONFIRMED = "user_confirmed"
-
-
-class AuditSeverity(str, enum.Enum):
-    INFO = "info"
-    WARNING = "warning"
-    CRITICAL = "critical"
-
-
-class AuditFindingKind(str, enum.Enum):
-    UNCOVERED_REQUIREMENT = "uncovered_requirement"
-    PARTIAL_COVERAGE = "partial_coverage"
-    VAGUE_REQUIREMENT = "vague_requirement"
-    DEADLINE_RISK = "deadline_risk"
-    ORPHAN_TASK = "orphan_task"
+class SymbolKind(str, enum.Enum):
+    MODULE = "module"
+    CLASS = "class"
+    FUNCTION = "function"
+    METHOD = "method"
+    INTERFACE = "interface"
+    TYPE = "type"
+    CONSTANT = "constant"
     OTHER = "other"
+
+
+class VerificationVerdict(str, enum.Enum):
+    SATISFIED = "satisfied"
+    PARTIAL = "partial"
+    NOT_SATISFIED = "not_satisfied"
+    INCONCLUSIVE = "inconclusive"
+    NOT_APPLICABLE = "not_applicable"
+
+
+class EvidenceKind(str, enum.Enum):
+    SUPPORTING = "supporting"
+    CONTRADICTING = "contradicting"
+    CONTEXT = "context"
 
 
 def pgenum(enum_cls: type[enum.Enum], name: str) -> Enum:
@@ -129,9 +139,6 @@ class User(TimestampMixin, Base):
     projects: Mapped[list[Project]] = relationship(back_populates="user", cascade="all, delete-orphan")
     sources: Mapped[list[Source]] = relationship(back_populates="user", cascade="all, delete-orphan")
     requirements: Mapped[list[Requirement]] = relationship(back_populates="user", cascade="all, delete-orphan")
-    tasks: Mapped[list[Task]] = relationship(back_populates="user", cascade="all, delete-orphan")
-    coverage_links: Mapped[list[CoverageLink]] = relationship(back_populates="user", cascade="all, delete-orphan")
-    audit_runs: Mapped[list[AuditRun]] = relationship(back_populates="user", cascade="all, delete-orphan")
 
 
 class Project(TimestampMixin, Base):
@@ -147,9 +154,6 @@ class Project(TimestampMixin, Base):
     user: Mapped[User] = relationship(back_populates="projects")
     sources: Mapped[list[Source]] = relationship(back_populates="project", cascade="all, delete-orphan")
     requirements: Mapped[list[Requirement]] = relationship(back_populates="project", cascade="all, delete-orphan")
-    tasks: Mapped[list[Task]] = relationship(back_populates="project", cascade="all, delete-orphan")
-    coverage_links: Mapped[list[CoverageLink]] = relationship(back_populates="project", cascade="all, delete-orphan")
-    audit_runs: Mapped[list[AuditRun]] = relationship(back_populates="project", cascade="all, delete-orphan")
 
 
 class Source(TimestampMixin, Base):
@@ -187,7 +191,6 @@ class Chunk(TimestampMixin, Base):
 
     source: Mapped[Source] = relationship(back_populates="chunks")
     requirement_chunks: Mapped[list[RequirementChunk]] = relationship(back_populates="chunk", cascade="all, delete-orphan")
-    task_chunks: Mapped[list[TaskChunk]] = relationship(back_populates="chunk", cascade="all, delete-orphan")
 
 
 class Requirement(TimestampMixin, Base):
@@ -210,9 +213,6 @@ class Requirement(TimestampMixin, Base):
     project: Mapped[Project] = relationship(back_populates="requirements")
     user: Mapped[User] = relationship(back_populates="requirements")
     chunks: Mapped[list[RequirementChunk]] = relationship(back_populates="requirement", cascade="all, delete-orphan")
-    tasks: Mapped[list[Task]] = relationship(back_populates="requirement")
-    coverage_links: Mapped[list[CoverageLink]] = relationship(back_populates="requirement", cascade="all, delete-orphan")
-    findings: Mapped[list[AuditFinding]] = relationship(back_populates="requirement")
 
 
 class RequirementChunk(Base):
@@ -226,93 +226,270 @@ class RequirementChunk(Base):
     chunk: Mapped[Chunk] = relationship(back_populates="requirement_chunks")
 
 
-class Task(TimestampMixin, Base):
-    __tablename__ = "Task"
+class RepositoryConnection(TimestampMixin, Base):
+    __tablename__ = "RepositoryConnection"
     __table_args__ = (
-        Index("Task_projectId_idx", "projectId"), Index("Task_userId_idx", "userId"), Index("Task_requirementId_idx", "requirementId"),
-        Index("Task_state_idx", "state"), Index("Task_dedupeKey_idx", "dedupeKey"),
+        UniqueConstraint("projectId", "provider", "externalId", name="RepositoryConnection_project_provider_external_key"),
+        Index("RepositoryConnection_projectId_idx", "projectId"),
+        Index("RepositoryConnection_userId_idx", "userId"),
     )
 
     id: Mapped[str] = mapped_column(String, primary_key=True, default=new_id)
     project_id: Mapped[str] = mapped_column("projectId", ForeignKey("Project.id", ondelete="CASCADE", onupdate="CASCADE"), nullable=False)
     user_id: Mapped[str] = mapped_column("userId", ForeignKey("User.id", ondelete="CASCADE", onupdate="CASCADE"), nullable=False)
-    requirement_id: Mapped[str | None] = mapped_column("requirementId", ForeignKey("Requirement.id", ondelete="SET NULL", onupdate="CASCADE"))
+    provider: Mapped[RepositoryProvider] = mapped_column(pgenum(RepositoryProvider, "RepositoryProvider"), nullable=False)
+    external_id: Mapped[str] = mapped_column("externalId", String, nullable=False)
+    clone_url: Mapped[str] = mapped_column("cloneUrl", Text, nullable=False)
+    default_branch: Mapped[str] = mapped_column("defaultBranch", String, nullable=False)
+    display_name: Mapped[str] = mapped_column("displayName", String, nullable=False)
+    is_active: Mapped[bool] = mapped_column("isActive", Boolean, default=True, server_default=text("true"), nullable=False)
+    updated_at: Mapped[datetime] = mapped_column("updatedAt", DateTime(), default=func.now(), onupdate=func.now(), nullable=False)
+
+    snapshots: Mapped[list[RepositorySnapshot]] = relationship(back_populates="repository", cascade="all, delete-orphan")
+
+
+class RepositorySnapshot(TimestampMixin, Base):
+    __tablename__ = "RepositorySnapshot"
+    __table_args__ = (
+        UniqueConstraint("repositoryId", "commitSha", name="RepositorySnapshot_repository_commit_key"),
+        Index("RepositorySnapshot_projectId_idx", "projectId"),
+        Index("RepositorySnapshot_repositoryId_idx", "repositoryId"),
+        Index("RepositorySnapshot_commitSha_idx", "commitSha"),
+    )
+
+    id: Mapped[str] = mapped_column(String, primary_key=True, default=new_id)
+    repository_id: Mapped[str] = mapped_column("repositoryId", ForeignKey("RepositoryConnection.id", ondelete="CASCADE", onupdate="CASCADE"), nullable=False)
+    project_id: Mapped[str] = mapped_column("projectId", ForeignKey("Project.id", ondelete="CASCADE", onupdate="CASCADE"), nullable=False)
+    user_id: Mapped[str] = mapped_column("userId", ForeignKey("User.id", ondelete="CASCADE", onupdate="CASCADE"), nullable=False)
+    kind: Mapped[SnapshotKind] = mapped_column(pgenum(SnapshotKind, "SnapshotKind"), nullable=False)
+    commit_sha: Mapped[str] = mapped_column("commitSha", String(64), nullable=False)
+    tree_sha: Mapped[str | None] = mapped_column("treeSha", String(64))
+    ref_name: Mapped[str | None] = mapped_column("refName", String)
+    base_commit_sha: Mapped[str | None] = mapped_column("baseCommitSha", String(64))
+    pull_request_number: Mapped[int | None] = mapped_column("pullRequestNumber", Integer)
+    committed_at: Mapped[datetime | None] = mapped_column("committedAt", DateTime())
+    metadata_json: Mapped[dict | None] = mapped_column("metadata", JSON)
+
+    repository: Mapped[RepositoryConnection] = relationship(back_populates="snapshots")
+    files: Mapped[list[RepositoryFile]] = relationship(back_populates="snapshot", cascade="all, delete-orphan")
+    index_runs: Mapped[list[IndexRun]] = relationship(back_populates="snapshot", cascade="all, delete-orphan")
+    verification_runs: Mapped[list[VerificationRun]] = relationship(back_populates="snapshot")
+
+
+class RepositoryFile(TimestampMixin, Base):
+    __tablename__ = "RepositoryFile"
+    __table_args__ = (
+        UniqueConstraint("snapshotId", "path", name="RepositoryFile_snapshot_path_key"),
+        Index("RepositoryFile_projectId_idx", "projectId"),
+        Index("RepositoryFile_snapshotId_idx", "snapshotId"),
+        Index("RepositoryFile_blobSha_idx", "blobSha"),
+    )
+
+    id: Mapped[str] = mapped_column(String, primary_key=True, default=new_id)
+    snapshot_id: Mapped[str] = mapped_column("snapshotId", ForeignKey("RepositorySnapshot.id", ondelete="CASCADE", onupdate="CASCADE"), nullable=False)
+    project_id: Mapped[str] = mapped_column("projectId", ForeignKey("Project.id", ondelete="CASCADE", onupdate="CASCADE"), nullable=False)
+    path: Mapped[str] = mapped_column(Text, nullable=False)
+    blob_sha: Mapped[str] = mapped_column("blobSha", String(64), nullable=False)
+    content_hash: Mapped[str] = mapped_column("contentHash", String(64), nullable=False)
+    language: Mapped[str | None] = mapped_column(String)
+    size_bytes: Mapped[int] = mapped_column("sizeBytes", Integer, nullable=False)
+    line_count: Mapped[int | None] = mapped_column("lineCount", Integer)
+    is_binary: Mapped[bool] = mapped_column("isBinary", Boolean, default=False, server_default=text("false"), nullable=False)
+
+    snapshot: Mapped[RepositorySnapshot] = relationship(back_populates="files")
+    symbols: Mapped[list[CodeSymbol]] = relationship(back_populates="file", cascade="all, delete-orphan")
+    chunks: Mapped[list[CodeChunk]] = relationship(back_populates="file", cascade="all, delete-orphan")
+
+
+class CodeSymbol(TimestampMixin, Base):
+    __tablename__ = "CodeSymbol"
+    __table_args__ = (
+        UniqueConstraint("fileId", "qualifiedName", "startLine", name="CodeSymbol_file_name_line_key"),
+        CheckConstraint('"startLine" > 0 AND "endLine" >= "startLine"', name="CodeSymbol_valid_lines_check"),
+        Index("CodeSymbol_projectId_idx", "projectId"),
+        Index("CodeSymbol_fileId_idx", "fileId"),
+        Index("CodeSymbol_qualifiedName_idx", "qualifiedName"),
+    )
+
+    id: Mapped[str] = mapped_column(String, primary_key=True, default=new_id)
+    file_id: Mapped[str] = mapped_column("fileId", ForeignKey("RepositoryFile.id", ondelete="CASCADE", onupdate="CASCADE"), nullable=False)
+    project_id: Mapped[str] = mapped_column("projectId", ForeignKey("Project.id", ondelete="CASCADE", onupdate="CASCADE"), nullable=False)
+    kind: Mapped[SymbolKind] = mapped_column(pgenum(SymbolKind, "SymbolKind"), nullable=False)
+    name: Mapped[str] = mapped_column(String, nullable=False)
+    qualified_name: Mapped[str] = mapped_column("qualifiedName", Text, nullable=False)
+    signature: Mapped[str | None] = mapped_column(Text)
+    start_line: Mapped[int] = mapped_column("startLine", Integer, nullable=False)
+    end_line: Mapped[int] = mapped_column("endLine", Integer, nullable=False)
+    symbol_hash: Mapped[str] = mapped_column("symbolHash", String(64), nullable=False)
+
+    file: Mapped[RepositoryFile] = relationship(back_populates="symbols")
+
+
+class IndexRun(TimestampMixin, Base):
+    __tablename__ = "IndexRun"
+    __table_args__ = (
+        Index("IndexRun_projectId_idx", "projectId"),
+        Index("IndexRun_snapshotId_idx", "snapshotId"),
+        Index("IndexRun_status_idx", "status"),
+    )
+
+    id: Mapped[str] = mapped_column(String, primary_key=True, default=new_id)
+    snapshot_id: Mapped[str] = mapped_column("snapshotId", ForeignKey("RepositorySnapshot.id", ondelete="CASCADE", onupdate="CASCADE"), nullable=False)
+    project_id: Mapped[str] = mapped_column("projectId", ForeignKey("Project.id", ondelete="CASCADE", onupdate="CASCADE"), nullable=False)
+    user_id: Mapped[str] = mapped_column("userId", ForeignKey("User.id", ondelete="CASCADE", onupdate="CASCADE"), nullable=False)
+    status: Mapped[RunStatus] = mapped_column(pgenum(RunStatus, "RunStatus"), default=RunStatus.PENDING, nullable=False)
+    index_version: Mapped[str] = mapped_column("indexVersion", String, nullable=False)
+    embedding_model: Mapped[str | None] = mapped_column("embeddingModel", String)
+    embedding_dimension: Mapped[int] = mapped_column("embeddingDimension", Integer, default=768, server_default=text("768"), nullable=False)
+    started_at: Mapped[datetime | None] = mapped_column("startedAt", DateTime())
+    completed_at: Mapped[datetime | None] = mapped_column("completedAt", DateTime())
+    error_message: Mapped[str | None] = mapped_column("errorMessage", Text)
+    stats: Mapped[dict | None] = mapped_column(JSON)
+
+    snapshot: Mapped[RepositorySnapshot] = relationship(back_populates="index_runs")
+    chunks: Mapped[list[CodeChunk]] = relationship(back_populates="index_run", cascade="all, delete-orphan")
+
+
+class CodeChunk(TimestampMixin, Base):
+    __tablename__ = "CodeChunk"
+    __table_args__ = (
+        UniqueConstraint("indexRunId", "fileId", "ordinal", name="CodeChunk_run_file_ordinal_key"),
+        CheckConstraint('"startLine" > 0 AND "endLine" >= "startLine"', name="CodeChunk_valid_lines_check"),
+        Index("CodeChunk_projectId_idx", "projectId"),
+        Index("CodeChunk_fileId_idx", "fileId"),
+        Index("CodeChunk_indexRunId_idx", "indexRunId"),
+        Index("CodeChunk_contentHash_idx", "contentHash"),
+    )
+
+    id: Mapped[str] = mapped_column(String, primary_key=True, default=new_id)
+    index_run_id: Mapped[str] = mapped_column("indexRunId", ForeignKey("IndexRun.id", ondelete="CASCADE", onupdate="CASCADE"), nullable=False)
+    file_id: Mapped[str] = mapped_column("fileId", ForeignKey("RepositoryFile.id", ondelete="CASCADE", onupdate="CASCADE"), nullable=False)
+    project_id: Mapped[str] = mapped_column("projectId", ForeignKey("Project.id", ondelete="CASCADE", onupdate="CASCADE"), nullable=False)
+    ordinal: Mapped[int] = mapped_column(Integer, nullable=False)
+    start_line: Mapped[int] = mapped_column("startLine", Integer, nullable=False)
+    end_line: Mapped[int] = mapped_column("endLine", Integer, nullable=False)
+    content: Mapped[str] = mapped_column(Text, nullable=False)
+    content_hash: Mapped[str] = mapped_column("contentHash", String(64), nullable=False)
+    token_count: Mapped[int | None] = mapped_column("tokenCount", Integer)
+    embedding: Mapped[list[float] | None] = mapped_column(Vector(768))
+
+    index_run: Mapped[IndexRun] = relationship(back_populates="chunks")
+    file: Mapped[RepositoryFile] = relationship(back_populates="chunks")
+    evidence_references: Mapped[list[EvidenceReference]] = relationship(back_populates="chunk")
+
+
+class RequirementRevision(TimestampMixin, Base):
+    __tablename__ = "RequirementRevision"
+    __table_args__ = (
+        UniqueConstraint("requirementId", "revision", name="RequirementRevision_requirement_revision_key"),
+        UniqueConstraint("requirementId", "contentHash", name="RequirementRevision_requirement_hash_key"),
+        Index("RequirementRevision_projectId_idx", "projectId"),
+        Index("RequirementRevision_requirementId_idx", "requirementId"),
+    )
+
+    id: Mapped[str] = mapped_column(String, primary_key=True, default=new_id)
+    requirement_id: Mapped[str] = mapped_column("requirementId", ForeignKey("Requirement.id", ondelete="CASCADE", onupdate="CASCADE"), nullable=False)
+    project_id: Mapped[str] = mapped_column("projectId", ForeignKey("Project.id", ondelete="CASCADE", onupdate="CASCADE"), nullable=False)
+    user_id: Mapped[str] = mapped_column("userId", ForeignKey("User.id", ondelete="CASCADE", onupdate="CASCADE"), nullable=False)
+    revision: Mapped[int] = mapped_column(Integer, nullable=False)
     title: Mapped[str] = mapped_column(String, nullable=False)
     description: Mapped[str | None] = mapped_column(Text)
-    origin: Mapped[TaskOrigin] = mapped_column(pgenum(TaskOrigin, "TaskOrigin"), default=TaskOrigin.AI, nullable=False)
-    state: Mapped[TaskState] = mapped_column(pgenum(TaskState, "TaskState"), default=TaskState.SUGGESTED, nullable=False)
-    dedupe_key: Mapped[str | None] = mapped_column("dedupeKey", String)
-    updated_at: Mapped[datetime] = mapped_column("updatedAt", DateTime(), default=func.now(), onupdate=func.now(), nullable=False)
+    acceptance_criteria: Mapped[list | None] = mapped_column("acceptanceCriteria", JSON)
+    content_hash: Mapped[str] = mapped_column("contentHash", String(64), nullable=False)
 
-    project: Mapped[Project] = relationship(back_populates="tasks")
-    user: Mapped[User] = relationship(back_populates="tasks")
-    requirement: Mapped[Requirement | None] = relationship(back_populates="tasks")
-    chunks: Mapped[list[TaskChunk]] = relationship(back_populates="task", cascade="all, delete-orphan")
-    coverage_links: Mapped[list[CoverageLink]] = relationship(back_populates="task", cascade="all, delete-orphan")
-    findings: Mapped[list[AuditFinding]] = relationship(back_populates="task")
+    verdicts: Mapped[list[RequirementVerdict]] = relationship(back_populates="requirement_revision")
 
 
-class TaskChunk(Base):
-    __tablename__ = "TaskChunk"
-    __table_args__ = (Index("TaskChunk_chunkId_idx", "chunkId"),)
-
-    task_id: Mapped[str] = mapped_column("taskId", ForeignKey("Task.id", ondelete="CASCADE", onupdate="CASCADE"), primary_key=True)
-    chunk_id: Mapped[str] = mapped_column("chunkId", ForeignKey("Chunk.id", ondelete="CASCADE", onupdate="CASCADE"), primary_key=True)
-
-    task: Mapped[Task] = relationship(back_populates="chunks")
-    chunk: Mapped[Chunk] = relationship(back_populates="task_chunks")
-
-
-class CoverageLink(TimestampMixin, Base):
-    __tablename__ = "CoverageLink"
+class VerificationRun(TimestampMixin, Base):
+    __tablename__ = "VerificationRun"
     __table_args__ = (
-        UniqueConstraint("requirementId", "taskId", name="CoverageLink_requirementId_taskId_key"),
-        Index("CoverageLink_projectId_idx", "projectId"), Index("CoverageLink_requirementId_idx", "requirementId"), Index("CoverageLink_taskId_idx", "taskId"),
+        Index("VerificationRun_projectId_idx", "projectId"),
+        Index("VerificationRun_snapshotId_idx", "snapshotId"),
+        Index("VerificationRun_status_idx", "status"),
     )
 
     id: Mapped[str] = mapped_column(String, primary_key=True, default=new_id)
+    snapshot_id: Mapped[str] = mapped_column("snapshotId", ForeignKey("RepositorySnapshot.id", ondelete="RESTRICT", onupdate="CASCADE"), nullable=False)
     project_id: Mapped[str] = mapped_column("projectId", ForeignKey("Project.id", ondelete="CASCADE", onupdate="CASCADE"), nullable=False)
     user_id: Mapped[str] = mapped_column("userId", ForeignKey("User.id", ondelete="CASCADE", onupdate="CASCADE"), nullable=False)
-    requirement_id: Mapped[str] = mapped_column("requirementId", ForeignKey("Requirement.id", ondelete="CASCADE", onupdate="CASCADE"), nullable=False)
-    task_id: Mapped[str] = mapped_column("taskId", ForeignKey("Task.id", ondelete="CASCADE", onupdate="CASCADE"), nullable=False)
-    status: Mapped[CoverageStatus] = mapped_column(pgenum(CoverageStatus, "CoverageStatus"), nullable=False)
-    origin: Mapped[CoverageOrigin] = mapped_column(pgenum(CoverageOrigin, "CoverageOrigin"), nullable=False)
-    rationale: Mapped[str | None] = mapped_column(Text)
-    updated_at: Mapped[datetime] = mapped_column("updatedAt", DateTime(), default=func.now(), onupdate=func.now(), nullable=False)
+    status: Mapped[RunStatus] = mapped_column(pgenum(RunStatus, "RunStatus"), default=RunStatus.PENDING, nullable=False)
+    verifier_version: Mapped[str] = mapped_column("verifierVersion", String, nullable=False)
+    model_name: Mapped[str | None] = mapped_column("modelName", String)
+    started_at: Mapped[datetime | None] = mapped_column("startedAt", DateTime())
+    completed_at: Mapped[datetime | None] = mapped_column("completedAt", DateTime())
+    error_message: Mapped[str | None] = mapped_column("errorMessage", Text)
+    metadata_json: Mapped[dict | None] = mapped_column("metadata", JSON)
 
-    project: Mapped[Project] = relationship(back_populates="coverage_links")
-    user: Mapped[User] = relationship(back_populates="coverage_links")
-    requirement: Mapped[Requirement] = relationship(back_populates="coverage_links")
-    task: Mapped[Task] = relationship(back_populates="coverage_links")
+    snapshot: Mapped[RepositorySnapshot] = relationship(back_populates="verification_runs")
+    verdicts: Mapped[list[RequirementVerdict]] = relationship(back_populates="verification_run", cascade="all, delete-orphan")
 
 
-class AuditRun(TimestampMixin, Base):
-    __tablename__ = "AuditRun"
-    __table_args__ = (Index("AuditRun_projectId_idx", "projectId"), Index("AuditRun_createdAt_idx", "createdAt"))
+class RequirementVerdict(TimestampMixin, Base):
+    __tablename__ = "RequirementVerdict"
+    __table_args__ = (
+        UniqueConstraint("verificationRunId", "requirementRevisionId", name="RequirementVerdict_run_revision_key"),
+        CheckConstraint('confidence >= 0 AND confidence <= 1', name="RequirementVerdict_confidence_check"),
+        Index("RequirementVerdict_projectId_idx", "projectId"),
+        Index("RequirementVerdict_verificationRunId_idx", "verificationRunId"),
+        Index("RequirementVerdict_requirementRevisionId_idx", "requirementRevisionId"),
+    )
 
     id: Mapped[str] = mapped_column(String, primary_key=True, default=new_id)
+    verification_run_id: Mapped[str] = mapped_column("verificationRunId", ForeignKey("VerificationRun.id", ondelete="CASCADE", onupdate="CASCADE"), nullable=False)
+    requirement_revision_id: Mapped[str] = mapped_column("requirementRevisionId", ForeignKey("RequirementRevision.id", ondelete="RESTRICT", onupdate="CASCADE"), nullable=False)
     project_id: Mapped[str] = mapped_column("projectId", ForeignKey("Project.id", ondelete="CASCADE", onupdate="CASCADE"), nullable=False)
-    user_id: Mapped[str] = mapped_column("userId", ForeignKey("User.id", ondelete="CASCADE", onupdate="CASCADE"), nullable=False)
-    summary: Mapped[str | None] = mapped_column(Text)
+    verdict: Mapped[VerificationVerdict] = mapped_column(pgenum(VerificationVerdict, "VerificationVerdict"), nullable=False)
+    confidence: Mapped[float] = mapped_column(Float, nullable=False)
+    rationale: Mapped[str] = mapped_column(Text, nullable=False)
 
-    project: Mapped[Project] = relationship(back_populates="audit_runs")
-    user: Mapped[User] = relationship(back_populates="audit_runs")
-    findings: Mapped[list[AuditFinding]] = relationship(back_populates="run", cascade="all, delete-orphan")
+    verification_run: Mapped[VerificationRun] = relationship(back_populates="verdicts")
+    requirement_revision: Mapped[RequirementRevision] = relationship(back_populates="verdicts")
+    evidence_references: Mapped[list[EvidenceReference]] = relationship(back_populates="verdict", cascade="all, delete-orphan")
+    overrides: Mapped[list[HumanOverride]] = relationship(back_populates="verdict_record", cascade="all, delete-orphan")
 
 
-class AuditFinding(TimestampMixin, Base):
-    __tablename__ = "AuditFinding"
-    __table_args__ = (Index("AuditFinding_runId_idx", "runId"), Index("AuditFinding_projectId_idx", "projectId"), Index("AuditFinding_severity_idx", "severity"))
+class EvidenceReference(TimestampMixin, Base):
+    __tablename__ = "EvidenceReference"
+    __table_args__ = (
+        CheckConstraint('"startLine" > 0 AND "endLine" >= "startLine"', name="EvidenceReference_valid_lines_check"),
+        Index("EvidenceReference_projectId_idx", "projectId"),
+        Index("EvidenceReference_verdictId_idx", "verdictId"),
+        Index("EvidenceReference_snapshotId_idx", "snapshotId"),
+        Index("EvidenceReference_fileId_idx", "fileId"),
+    )
 
     id: Mapped[str] = mapped_column(String, primary_key=True, default=new_id)
-    run_id: Mapped[str] = mapped_column("runId", ForeignKey("AuditRun.id", ondelete="CASCADE", onupdate="CASCADE"), nullable=False)
-    project_id: Mapped[str] = mapped_column("projectId", String, nullable=False)
-    kind: Mapped[AuditFindingKind] = mapped_column(pgenum(AuditFindingKind, "AuditFindingKind"), nullable=False)
-    severity: Mapped[AuditSeverity] = mapped_column(pgenum(AuditSeverity, "AuditSeverity"), nullable=False)
-    message: Mapped[str] = mapped_column(Text, nullable=False)
-    requirement_id: Mapped[str | None] = mapped_column("requirementId", ForeignKey("Requirement.id", ondelete="SET NULL", onupdate="CASCADE"))
-    task_id: Mapped[str | None] = mapped_column("taskId", ForeignKey("Task.id", ondelete="SET NULL", onupdate="CASCADE"))
+    verdict_id: Mapped[str] = mapped_column("verdictId", ForeignKey("RequirementVerdict.id", ondelete="CASCADE", onupdate="CASCADE"), nullable=False)
+    project_id: Mapped[str] = mapped_column("projectId", ForeignKey("Project.id", ondelete="CASCADE", onupdate="CASCADE"), nullable=False)
+    snapshot_id: Mapped[str] = mapped_column("snapshotId", ForeignKey("RepositorySnapshot.id", ondelete="RESTRICT", onupdate="CASCADE"), nullable=False)
+    file_id: Mapped[str] = mapped_column("fileId", ForeignKey("RepositoryFile.id", ondelete="RESTRICT", onupdate="CASCADE"), nullable=False)
+    chunk_id: Mapped[str | None] = mapped_column("chunkId", ForeignKey("CodeChunk.id", ondelete="SET NULL", onupdate="CASCADE"))
+    kind: Mapped[EvidenceKind] = mapped_column(pgenum(EvidenceKind, "EvidenceKind"), nullable=False)
+    start_line: Mapped[int] = mapped_column("startLine", Integer, nullable=False)
+    end_line: Mapped[int] = mapped_column("endLine", Integer, nullable=False)
+    quote: Mapped[str] = mapped_column(Text, nullable=False)
+    quote_hash: Mapped[str] = mapped_column("quoteHash", String(64), nullable=False)
+    file_content_hash: Mapped[str] = mapped_column("fileContentHash", String(64), nullable=False)
+    relevance_score: Mapped[float | None] = mapped_column("relevanceScore", Float)
 
-    run: Mapped[AuditRun] = relationship(back_populates="findings")
-    requirement: Mapped[Requirement | None] = relationship(back_populates="findings")
-    task: Mapped[Task | None] = relationship(back_populates="findings")
+    verdict: Mapped[RequirementVerdict] = relationship(back_populates="evidence_references")
+    chunk: Mapped[CodeChunk | None] = relationship(back_populates="evidence_references")
+
+
+class HumanOverride(TimestampMixin, Base):
+    __tablename__ = "HumanOverride"
+    __table_args__ = (
+        Index("HumanOverride_projectId_idx", "projectId"),
+        Index("HumanOverride_verdictId_idx", "verdictId"),
+        Index("HumanOverride_userId_idx", "userId"),
+    )
+
+    id: Mapped[str] = mapped_column(String, primary_key=True, default=new_id)
+    verdict_id: Mapped[str] = mapped_column("verdictId", ForeignKey("RequirementVerdict.id", ondelete="CASCADE", onupdate="CASCADE"), nullable=False)
+    project_id: Mapped[str] = mapped_column("projectId", ForeignKey("Project.id", ondelete="CASCADE", onupdate="CASCADE"), nullable=False)
+    user_id: Mapped[str] = mapped_column("userId", ForeignKey("User.id", ondelete="RESTRICT", onupdate="CASCADE"), nullable=False)
+    verdict: Mapped[VerificationVerdict] = mapped_column(pgenum(VerificationVerdict, "VerificationVerdict"), nullable=False)
+    rationale: Mapped[str] = mapped_column(Text, nullable=False)
+    supersedes_override_id: Mapped[str | None] = mapped_column("supersedesOverrideId", ForeignKey("HumanOverride.id", ondelete="SET NULL", onupdate="CASCADE"))
+
+    verdict_record: Mapped[RequirementVerdict] = relationship(back_populates="overrides", foreign_keys=[verdict_id])

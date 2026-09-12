@@ -1,7 +1,7 @@
 """Tests for the AI provider layer.
 
 Covers Gemini structured parsing, the retryable-error classifier, and the
-fallback chain wiring (Gemini → Groq → stub). HTTP calls are mocked; no network
+fallback chain wiring (primary → backup). HTTP calls are mocked; no network
 access or API keys are required.
 """
 from __future__ import annotations
@@ -10,17 +10,10 @@ import httpx
 import pytest
 
 from app.providers.ai_provider import (
-    AIAuditCoverageInput,
-    AIAuditCoverageOutput,
     AIExtractRequirementsInput,
-    AIExtractTasksInput,
-    AIRiskSummaryInput,
     ExtractedRequirement,
-    ExtractedTask,
     FallbackAIProvider,
     GeminiAIProvider,
-    GroqAIProvider,
-    RoutingAIProvider,
     _is_retryable,
     _parse_retry_after,
     _safe_json_loads,
@@ -126,6 +119,14 @@ def test_gemini_extract_requirements_raises_on_invalid_json(monkeypatch):
         provider.extract_requirements(_reqs_input())
 
 
+'''Removed standalone task/coverage tests.
+
+The requirement-to-task coverage path (extract_tasks / audit_coverage /
+risk_summary and their AI types) was eliminated from the product: Cartana
+verifies PRs against requirements directly. These tests are kept as a
+tombstone so the removal stays visible in history.
+
+
 def test_gemini_extract_tasks_parses_linked_requirement(monkeypatch):
     provider = _make_gemini()
     _patch_post(monkeypatch, [
@@ -183,6 +184,7 @@ def test_gemini_risk_summary_returns_text(monkeypatch):
     ))
 
     assert out.summary == "2/3 requirements covered."
+'''
 
 
 # ---- Retryable classification ----
@@ -214,16 +216,16 @@ def test_gemini_retries_429_then_succeeds(monkeypatch):
     assert len(calls) == 2
 
 
-# ---- Fallback chain ----
+# ---- Fallback chain (live requirement-extraction role) ----
 
 
-class _FakeAuditProvider:
+class _FakeExtractProvider:
     def __init__(self, outcome) -> None:
         self.outcome = outcome
         self.calls = 0
         self.id = "fake"
 
-    def audit_coverage(self, input: AIAuditCoverageInput) -> AIAuditCoverageOutput:
+    def extract_requirements(self, input: AIExtractRequirementsInput):
         self.calls += 1
         if isinstance(self.outcome, Exception):
             raise self.outcome
@@ -231,94 +233,33 @@ class _FakeAuditProvider:
 
 
 def test_fallback_uses_backup_on_retryable_failure():
-    result = AIAuditCoverageOutput(judgments=[])
-    primary = _FakeAuditProvider(RuntimeError("429 rate limited"))
-    backup = _FakeAuditProvider(result)
+    result = [ExtractedRequirement(title="R", description="", chunkIds=[])]
+    primary = _FakeExtractProvider(RuntimeError("429 rate limited"))
+    backup = _FakeExtractProvider(result)
 
     fallback = FallbackAIProvider(primary, backup)
 
-    assert fallback.audit_coverage(AIAuditCoverageInput(
-        requirement={"title": "R", "description": ""},
-        candidateTasks=[],
-    )) is result
+    assert fallback.extract_requirements(_reqs_input()) is result
     assert primary.calls == 1
     assert backup.calls == 1
 
 
 def test_fallback_reraises_non_retryable():
-    primary = _FakeAuditProvider(RuntimeError("400 bad request"))
-    backup = _FakeAuditProvider(AIAuditCoverageOutput(judgments=[]))
+    primary = _FakeExtractProvider(RuntimeError("400 bad request"))
+    backup = _FakeExtractProvider([])
 
     fallback = FallbackAIProvider(primary, backup)
 
     with pytest.raises(RuntimeError, match="400"):
-        fallback.audit_coverage(AIAuditCoverageInput(
-            requirement={"title": "R", "description": ""},
-            candidateTasks=[],
-        ))
+        fallback.extract_requirements(_reqs_input())
     assert backup.calls == 0
 
 
 def test_fallback_skips_none_slots():
-    result = AIAuditCoverageOutput(judgments=[])
-    groq = _FakeAuditProvider(result)
+    result = [ExtractedRequirement(title="R", description="", chunkIds=[])]
+    backup = _FakeExtractProvider(result)
 
-    fallback = FallbackAIProvider(None, groq)
+    fallback = FallbackAIProvider(None, backup)
 
-    assert fallback.audit_coverage(AIAuditCoverageInput(
-        requirement={"title": "R", "description": ""},
-        candidateTasks=[],
-    )) is result
+    assert fallback.extract_requirements(_reqs_input()) is result
     assert fallback.parallel_audit is False
-
-
-def test_fallback_parallel_audit_flags_primary_provider():
-    gemini = _FakeAuditProvider(AIAuditCoverageOutput(judgments=[]))
-    gemini.id = "gemini"
-    groq = _FakeAuditProvider(AIAuditCoverageOutput(judgments=[]))
-    groq.id = "groq"
-
-    assert FallbackAIProvider(gemini, groq).parallel_audit is True
-    assert FallbackAIProvider(groq, gemini).parallel_audit is False
-
-
-def test_routing_provider_exposes_audit_parallelism():
-    groq = GroqAIProvider(api_key="k", model="m")
-    gemini = GeminiAIProvider(api_key="k", model="m")
-
-    routing_gemini = RoutingAIProvider(chat=groq, extract=gemini, audit=gemini)
-    assert routing_gemini.parallel_audit is True
-
-    routing_groq = RoutingAIProvider(chat=groq, extract=groq, audit=groq)
-    assert routing_groq.parallel_audit is False
-
-
-def test_factory_routing_wires_gemini_primary_and_groq_chat(monkeypatch):
-    from types import SimpleNamespace
-
-    import app.providers.ai_provider as ap
-
-    settings = SimpleNamespace(
-        llm_provider="routing",
-        cerebras_api_key=None,
-        cerebras_model="llama3.1-8b",
-        gemini_api_key="gk",
-        gemini_chat_model="gemini-x-flash",
-        gemini_audit_model="gemini-y-lite",
-        groq_api_key="grk",
-        groq_chat_model="groq-chat",
-        groq_extract_model="groq-extract",
-        groq_audit_model="groq-audit",
-    )
-    monkeypatch.setattr(ap, "get_settings", lambda: settings)
-    ap.get_ai_provider.cache_clear()
-    try:
-        provider = ap.get_ai_provider()
-
-        assert provider._chat._chain[0].id == "groq"
-        assert [p.id for p in provider._extract._chain] == ["gemini", "groq", "stub"]
-        assert [p.id for p in provider._audit._chain] == ["gemini", "groq", "stub"]
-        assert "cloudflare" not in [p.id for p in provider._extract._chain]
-        assert provider.parallel_audit is True
-    finally:
-        ap.get_ai_provider.cache_clear()

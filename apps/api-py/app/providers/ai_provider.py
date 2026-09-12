@@ -65,52 +65,9 @@ class ExtractedRequirement:
 
 
 @dataclass
-class ExtractedTask:
-    title: str
-    description: str
-    chunkIds: list[str]
-    linkedRequirementTitle: str | None = None
-
-
-@dataclass
 class AIExtractRequirementsInput:
     sourceFilename: str
     chunks: list[dict[str, object]]
-
-
-@dataclass
-class AIExtractTasksInput:
-    sourceFilename: str
-    chunks: list[dict[str, object]]
-    requirements: list[dict[str, str]]
-
-
-@dataclass
-class CoverageJudgment:
-    status: str
-    rationale: str
-
-
-@dataclass
-class AIAuditCoverageInput:
-    requirement: dict[str, str]
-    candidateTasks: list[dict[str, str]]
-
-
-@dataclass
-class AIAuditCoverageOutput:
-    judgments: list[CoverageJudgment]
-
-
-@dataclass
-class AIRiskSummaryInput:
-    requirements: list[dict[str, str]]
-    findings: list[dict[str, str]]
-
-
-@dataclass
-class AIRiskSummaryOutput:
-    summary: str
 
 
 # ---- Provider interface ----
@@ -126,12 +83,6 @@ class AIProvider(Protocol):
     def _structured(self, system: str, user: str, *, max_tokens: int, temperature: float) -> str: ...
 
     def extract_requirements(self, input: AIExtractRequirementsInput) -> list[ExtractedRequirement]: ...
-
-    def extract_tasks(self, input: AIExtractTasksInput) -> list[ExtractedTask]: ...
-
-    def audit_coverage(self, input: AIAuditCoverageInput) -> AIAuditCoverageOutput: ...
-
-    def risk_summary(self, input: AIRiskSummaryInput) -> AIRiskSummaryOutput: ...
 
 
 # ---- Helpers ----
@@ -240,14 +191,8 @@ def _safe_json_loads(raw: object, *, label: str) -> object:
 
 # ---- Stub provider ----
 
-from app.providers.extractors.coverage_stub import coverage_stub
 from app.providers.extractors.requirement_extractor import extract_requirements_stub
-from app.providers.extractors.task_extractor import extract_tasks_stub
-from app.providers.prompts.audit import build_coverage_prompt, build_risk_summary_prompt
-from app.providers.prompts.extraction import (
-    build_extract_requirements_prompt,
-    build_extract_tasks_prompt,
-)
+from app.providers.prompts.extraction import build_extract_requirements_prompt
 
 
 class StubAIProvider:
@@ -287,30 +232,6 @@ class StubAIProvider:
 
     def extract_requirements(self, input: AIExtractRequirementsInput) -> list[ExtractedRequirement]:
         return extract_requirements_stub(input)
-
-    def extract_tasks(self, input: AIExtractTasksInput) -> list[ExtractedTask]:
-        return extract_tasks_stub(input)
-
-    def audit_coverage(self, input: AIAuditCoverageInput) -> AIAuditCoverageOutput:
-        return coverage_stub(input)
-
-    def risk_summary(self, input: AIRiskSummaryInput) -> AIRiskSummaryOutput:
-        total = len(input.requirements)
-        covered = sum(1 for r in input.requirements if r["status"] == "covered")
-        missing = sum(1 for r in input.requirements if r["status"] == "missing")
-        partial = sum(1 for r in input.requirements if r["status"] == "partial")
-        critical = sum(1 for f in input.findings if f["severity"] == "critical")
-
-        parts: list[str] = []
-        parts.append(f"Coverage audit complete. {covered}/{total} requirements are fully covered.")
-        if partial > 0:
-            parts.append(f"{partial} requirement{'s' if partial != 1 else ''} have partial coverage.")
-        if missing > 0:
-            parts.append(f"{missing} requirement{'s' if missing != 1 else ''} are not covered by any task.")
-        if critical > 0:
-            parts.append(f"{critical} critical finding{'s' if critical != 1 else ''} require attention.")
-
-        return AIRiskSummaryOutput(summary=" ".join(parts))
 
 
 # ---- Fireworks provider ----
@@ -371,6 +292,7 @@ class FireworksAIProvider:
     def extract_requirements(self, input: AIExtractRequirementsInput) -> list[ExtractedRequirement]:
         return extract_requirements_stub(input)
 
+    '''Legacy standalone task/coverage methods removed.
     def extract_tasks(self, input: AIExtractTasksInput) -> list[ExtractedTask]:
         return extract_tasks_stub(input)
 
@@ -425,6 +347,7 @@ class FireworksAIProvider:
         choices = resp.json().get("choices", [])
         summary = choices[0]["message"]["content"] if choices else ""
         return AIRiskSummaryOutput(summary=summary)
+    '''
 
 
 # ---- Groq provider ----
@@ -433,7 +356,7 @@ GROQ_URL = "https://api.groq.com/openai/v1/chat/completions"
 
 
 class GroqAIProvider:
-    """Groq — OpenAI-compatible chat completions with JSON mode for structured tasks."""
+    """Groq OpenAI-compatible chat and structured-generation provider."""
 
     id = "groq"
     _url = GROQ_URL
@@ -531,6 +454,7 @@ class GroqAIProvider:
             ))
         return out
 
+    '''Legacy standalone task/coverage methods removed.
     def extract_tasks(self, input: AIExtractTasksInput) -> list[ExtractedTask]:
         system, user = build_extract_tasks_prompt(input)
         chunk_ids = [str(c.get("id", "")) for c in input.chunks]
@@ -593,6 +517,7 @@ class GroqAIProvider:
             "temperature": 0.3,
         })
         return AIRiskSummaryOutput(summary=answer)
+    '''
 
 
 # ---- Cerebras provider ----
@@ -699,6 +624,7 @@ class CerebrasAIProvider:
             ))
         return out
 
+    '''Legacy standalone task/coverage methods removed.
     def extract_tasks(self, input: AIExtractTasksInput) -> list[ExtractedTask]:
         system, user = build_extract_tasks_prompt(input)
         chunk_ids = [str(c.get("id", "")) for c in input.chunks]
@@ -757,6 +683,7 @@ class CerebrasAIProvider:
             "temperature": 0.3,
         })
         return AIRiskSummaryOutput(summary=answer)
+    '''
 
 
 # ---- Gemini provider ----
@@ -868,6 +795,7 @@ class GeminiAIProvider:
             ))
         return out
 
+    '''Legacy standalone task/coverage methods removed.
     def extract_tasks(self, input: AIExtractTasksInput) -> list[ExtractedTask]:
         system, user = build_extract_tasks_prompt(input)
         chunk_ids = [str(c.get("id", "")) for c in input.chunks]
@@ -923,6 +851,7 @@ class GeminiAIProvider:
             "generationConfig": {"temperature": 0.3, "maxOutputTokens": 1024},
         })
         return AIRiskSummaryOutput(summary=answer)
+    '''
 
 
 # ---- Fallback provider ----
@@ -930,8 +859,8 @@ class GeminiAIProvider:
 class FallbackAIProvider:
     """Try the primary provider, then backups, on retryable failures.
 
-    Used under ``LLM_PROVIDER=routing`` so Gemini can serve the structured roles
-    (extraction/audit) with Groq and finally the heuristic stub as fallbacks.
+    Used under ``LLM_PROVIDER=routing`` so configured providers can serve chat
+    and requirement extraction with deterministic fallbacks.
     ``None`` slots are skipped, so an unconfigured primary (e.g. missing Gemini
     keys) degrades cleanly to the next provider.
     """
@@ -970,21 +899,13 @@ class FallbackAIProvider:
     def extract_requirements(self, input: AIExtractRequirementsInput) -> list[ExtractedRequirement]:
         return self._call("extract_requirements", input)
 
-    def extract_tasks(self, input: AIExtractTasksInput) -> list[ExtractedTask]:
-        return self._call("extract_tasks", input)
-
-    def audit_coverage(self, input: AIAuditCoverageInput) -> AIAuditCoverageOutput:
-        return self._call("audit_coverage", input)
-
-    def risk_summary(self, input: AIRiskSummaryInput) -> AIRiskSummaryOutput:
-        return self._call("risk_summary", input)
 
 
 # ---- Routing provider ----
 
 
 class RoutingAIProvider:
-    """Per-task routing: chat → Groq, extraction → Gemini, audit → Gemini.
+    """Per-role routing for chat and requirement extraction.
 
     Each role is a ``FallbackAIProvider`` chain so a role degrades to the next
     configured provider on retryable failure.
@@ -996,12 +917,9 @@ class RoutingAIProvider:
         self,
         chat: AIProvider,
         extract: AIProvider,
-        audit: AIProvider,
     ) -> None:
         self._chat = chat
         self._extract = extract
-        self._audit = audit
-        self.parallel_audit = getattr(audit, "parallel_audit", False)
 
     def chat(self, input: AIChatInput) -> AIChatOutput:
         return self._chat.chat(input)
@@ -1020,14 +938,6 @@ class RoutingAIProvider:
     def extract_requirements(self, input: AIExtractRequirementsInput) -> list[ExtractedRequirement]:
         return self._extract.extract_requirements(input)
 
-    def extract_tasks(self, input: AIExtractTasksInput) -> list[ExtractedTask]:
-        return self._extract.extract_tasks(input)
-
-    def audit_coverage(self, input: AIAuditCoverageInput) -> AIAuditCoverageOutput:
-        return self._audit.audit_coverage(input)
-
-    def risk_summary(self, input: AIRiskSummaryInput) -> AIRiskSummaryOutput:
-        return self._audit.risk_summary(input)
 
 
 # ---- Factory ----
@@ -1062,10 +972,8 @@ def get_ai_provider() -> AIProvider:
         stub = StubAIProvider()
         cerebras = _build_cerebras(settings)
         gemini = _build_gemini(settings, settings.gemini_chat_model)
-        gemini_audit = _build_gemini(settings, settings.gemini_audit_model)
         groq_chat = _build_groq(settings, settings.groq_chat_model)
         groq_extract = _build_groq(settings, settings.groq_extract_model)
-        groq_audit = _build_groq(settings, settings.groq_audit_model)
 
         return RoutingAIProvider(
             chat=FallbackAIProvider(
@@ -1078,12 +986,6 @@ def get_ai_provider() -> AIProvider:
                 cerebras,
                 gemini,
                 groq_extract,
-                stub,
-            ),
-            audit=FallbackAIProvider(
-                cerebras,
-                gemini_audit,
-                groq_audit,
                 stub,
             ),
         )

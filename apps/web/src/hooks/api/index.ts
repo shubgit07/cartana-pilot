@@ -8,5 +8,6 @@ export { useSourceStatus, useSources } from "./sources";
 export type { SourceLiveStatus } from "./sources";
 export { useChat } from "./chat";
 export { useRequirements } from "./requirements";
-export { useGenerateTasks, useTasks } from "./tasks";
-export { useAuditRuns, useCoverageLinks, useLatestAudit, useRunAudit } from "./audit";
+export { useVerifyPR } from "./audit";
+export { useLatestRun, useVerificationRuns } from "./compliance";
+export { useRepository } from "./repository";

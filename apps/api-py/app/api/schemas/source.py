@@ -9,7 +9,7 @@ The input schema mirrors ``CreateSourceFromTextSchema`` in
 """
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Literal
+from typing import TYPE_CHECKING, Literal, cast
 
 from pydantic import BaseModel, ConfigDict, Field
 
@@ -60,8 +60,8 @@ class SourceSummary(BaseModel):
             id=source.id,
             projectId=source.project_id,
             filename=source.filename,
-            kind=enum_value(source.kind),
-            status=enum_value(source.status),
+            kind=cast(SourceKindLiteral, enum_value(source.kind)),
+            status=cast(SourceStatusLiteral, enum_value(source.status)),
             errorMessage=source.error_message,
             createdAt=to_iso8601(source.created_at),
             chunkCount=chunk_count,
@@ -82,7 +82,7 @@ class JobStatusView(BaseModel):
     def from_model(cls, source: Source, chunks_total: int, embedded: int) -> JobStatusView:
         return cls(
             sourceId=source.id,
-            status=enum_value(source.status),
+            status=cast(SourceStatusLiteral, enum_value(source.status)),
             stage=_derive_stage(source, chunks_total),
             chunksTotal=chunks_total,
             embedded=embedded,

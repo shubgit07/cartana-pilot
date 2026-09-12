@@ -1,52 +1,86 @@
+"use client";
+
+import * as React from "react";
 import Link from "next/link";
+import { usePathname } from "next/navigation";
+import { Menu, X } from "lucide-react";
+import { Sidebar } from "./Sidebar";
+import { SkipLink } from "./SkipLink";
 import { CartanaLogo } from "./CartanaLogo";
-import { ThemeToggle } from "./ThemeToggle";
+import { cn } from "@/lib/cn";
 
+/**
+ * Linear app shell: fixed 244px sidebar + inset main panel (rounded frame
+ * with a hairline border). No top header / footer chrome — navigation lives
+ * in the sidebar. Mobile gets a menu button + slide-over sidebar.
+ */
 export function AppShell({ children }: { children: React.ReactNode }) {
+  const [mobileOpen, setMobileOpen] = React.useState(false);
+  const pathname = usePathname();
+
+  React.useEffect(() => {
+    setMobileOpen(false);
+  }, [pathname]);
+
   return (
-    <div className="flex min-h-full flex-col bg-background text-foreground">
-      <header className="sticky top-0 z-40 border-b border-border/70 bg-background/80 backdrop-blur-md supports-[backdrop-filter]:bg-background/65 safe-px safe-pt">
-        <div className="container flex h-14 items-center justify-between gap-4">
-          <Link
-            href="/"
-            className="group -ml-1.5 inline-flex items-center gap-2.5 rounded-md px-1.5 py-1 transition-colors duration-150 hover:bg-surface-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/70 focus-visible:ring-offset-2 focus-visible:ring-offset-background"
+    <div className="flex h-dvh gap-2 bg-background p-2 text-foreground">
+      <SkipLink href="#main-content">Skip to main content</SkipLink>
+
+      {/* Desktop sidebar */}
+      <aside className="hidden w-[244px] shrink-0 md:block" aria-label="Sidebar">
+        <Sidebar />
+      </aside>
+
+      {/* Mobile slide-over */}
+      {mobileOpen && (
+        <div className="fixed inset-0 z-50 md:hidden">
+          <button
+            type="button"
+            aria-label="Close navigation"
+            className="absolute inset-0 cursor-default bg-black/60"
+            onClick={() => setMobileOpen(false)}
+          />
+          <div className="absolute inset-y-0 left-0 w-[244px] bg-background p-2">
+            <Sidebar />
+          </div>
+        </div>
+      )}
+
+      {/* Main panel */}
+      <div className="flex min-w-0 flex-1 flex-col overflow-hidden rounded-xl border border-border bg-surface">
+        {/* Mobile bar */}
+        <div className="flex h-11 shrink-0 items-center gap-2 border-b border-border px-3 md:hidden">
+          <button
+            type="button"
+            aria-label="Open navigation"
+            onClick={() => setMobileOpen(true)}
+            className={cn(
+              "grid size-7 place-items-center rounded-full text-muted-foreground transition-colors hover:bg-surface-hover hover:text-foreground",
+              "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/70"
+            )}
           >
-            <span className="grid size-7 place-items-center rounded-md bg-primary-soft text-primary-soft-foreground transition-colors duration-150">
-              <CartanaLogo className="size-[1.3rem]" />
+            {mobileOpen ? (
+              <X className="h-4 w-4" aria-hidden="true" />
+            ) : (
+              <Menu className="h-4 w-4" aria-hidden="true" />
+            )}
+          </button>
+          <Link href="/" className="flex items-center gap-1.5" aria-label="Cartana home">
+            <span className="grid size-5 place-items-center rounded-md bg-primary text-primary-foreground">
+              <CartanaLogo className="size-3.5" />
             </span>
-            <span
-              className="font-serif text-[1.21875rem] font-semibold tracking-tight text-foreground"
-              translate="no"
-            >
-              Cartana
-            </span>
+            <span className="text-[13px] font-medium tracking-tight">Cartana</span>
           </Link>
-
-          <nav aria-label="Utilities" className="flex items-center gap-2">
-            <span className="hidden text-xs text-muted-foreground sm:inline">
-              Your PR copilot
-            </span>
-            <span aria-hidden="true" className="hidden h-4 w-px bg-border sm:inline-block" />
-            <ThemeToggle />
-          </nav>
         </div>
-      </header>
 
-      <main id="main-content" tabIndex={-1} className="container flex-1 py-8 safe-px">
-        {children}
-      </main>
-
-      <footer className="border-t border-border/70 safe-px safe-pb">
-        <div className="container flex flex-wrap items-center gap-x-2 gap-y-1 py-5 text-xs text-muted-foreground">
-          <span className="font-medium text-foreground/70">Cartana</span>
-          <span aria-hidden="true">·</span>
-          <span>Single-user local MVP</span>
-          <span aria-hidden="true">·</span>
-          <span>Phase 1</span>
-          <span aria-hidden="true">·</span>
-          <span>No login</span>
-        </div>
-      </footer>
+        <main
+          id="main-content"
+          tabIndex={-1}
+          className="min-h-0 flex-1 overflow-y-auto focus-visible:outline-none"
+        >
+          <div className="mx-auto w-full max-w-[1200px] px-4 py-4 sm:px-5">{children}</div>
+        </main>
+      </div>
     </div>
   );
 }

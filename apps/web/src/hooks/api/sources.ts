@@ -47,15 +47,6 @@ export function useSources(projectId: string) {
     [projectId, reload]
   );
 
-  const createFromDiff = React.useCallback(
-    async (filename: string, content: string) => {
-      const source = await sourcesApi.createFromDiff(projectId, filename, content);
-      await reload();
-      return source;
-    },
-    [projectId, reload]
-  );
-
   const remove = React.useCallback(
     async (sourceId: string) => {
       await sourcesApi.remove(projectId, sourceId);
@@ -64,7 +55,7 @@ export function useSources(projectId: string) {
     [projectId, reload]
   );
 
-  return { sources, loading, error, reload, uploadFile, createFromText, createFromDiff, remove };
+  return { sources, loading, error, reload, uploadFile, createFromText, remove };
 }
 
 export interface SourceLiveStatus {

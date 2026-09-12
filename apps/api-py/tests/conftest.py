@@ -17,7 +17,7 @@ from datetime import UTC, datetime
 
 import pytest
 from fastapi.testclient import TestClient
-from pgvector.sqlalchemy import Vector
+from pgvector.sqlalchemy import Vector  # type: ignore[import-untyped]
 from sqlalchemy import create_engine
 from sqlalchemy.ext.compiler import compiles
 from sqlalchemy.orm import Session, sessionmaker
@@ -52,7 +52,7 @@ DEV_USER = CurrentUser(
 )
 OTHER_USER_ID = "other-user"
 
-EMBEDDING_DIM = Chunk.__table__.c.embedding.type.dim
+EMBEDDING_DIM = getattr(Chunk.__table__.c.embedding.type, "dim", 768)
 
 
 @compiles(Vector, "sqlite")

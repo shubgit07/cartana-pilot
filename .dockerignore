@@ -1,0 +1,13 @@
+# Root .dockerignore for the web image (build context is the repo root).
+node_modules/
+apps/web/node_modules/
+apps/web/.next/
+packages/*/node_modules/
+.venv/
+apps/api-py/.venv/
+apps/api-py/storage/
+storage/
+__pycache__/
+.env
+.env.*
+.git/

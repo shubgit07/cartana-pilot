@@ -6,7 +6,7 @@ Mirrors ``RequirementSummary``, ``RequirementDetail`` in
 """
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Literal
+from typing import TYPE_CHECKING, Literal, cast
 
 from pydantic import BaseModel, ConfigDict, Field
 
@@ -49,8 +49,8 @@ class RequirementSummary(BaseModel):
             projectId=req.project_id,
             title=req.title,
             description=req.description,
-            origin=enum_value(req.origin),
-            state=enum_value(req.state),
+            origin=cast(RequirementOriginLiteral, enum_value(req.origin)),
+            state=cast(RequirementStateLiteral, enum_value(req.state)),
             sourceLinks=source_links,
             createdAt=to_iso8601(req.created_at),
             updatedAt=to_iso8601(req.updated_at),

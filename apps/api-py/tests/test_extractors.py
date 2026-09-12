@@ -1,17 +1,8 @@
-"""Tests for the stub extractors.
-
-Port of ``apps/api/src/ai/extractors/*.test.ts``.
-"""
+"""Tests for requirement extraction."""
 from __future__ import annotations
 
-from app.providers.ai_provider import (
-    AIAuditCoverageInput,
-    AIExtractRequirementsInput,
-    AIExtractTasksInput,
-)
-from app.providers.extractors.coverage_stub import coverage_stub
+from app.providers.ai_provider import AIExtractRequirementsInput
 from app.providers.extractors.requirement_extractor import extract_requirements_stub
-from app.providers.extractors.task_extractor import extract_tasks_stub
 
 # ---- Requirement extractor ----
 
@@ -50,7 +41,7 @@ def test_requirement_extractor_dedupes():
     assert len(result) == 1
 
 
-# ---- Task extractor ----
+'''Removed standalone task and requirement-to-task coverage tests.
 
 
 def test_task_extractor_finds_action_verbs():
@@ -116,6 +107,7 @@ def test_coverage_stub_unclear():
     ))
     assert len(result.judgments) == 1
     assert result.judgments[0].status == "unclear"
+'''
 
 
 # ---- Clean text & transcript preprocessor ----

@@ -21,8 +21,6 @@ export const QUEUE_NAMES = {
   sourceChunk: "source-chunk",
   sourceEmbed: "source-embed",
   extractRequirements: "extract-requirements",
-  extractTasks: "extract-tasks",
-  runAudit: "run-audit",
 } as const;
 
 export type QueueName = (typeof QUEUE_NAMES)[keyof typeof QUEUE_NAMES];

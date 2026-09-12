@@ -4,16 +4,8 @@ export type SourceStatus = "uploaded" | "processing" | "processed" | "failed";
 export type SourceKind = "pdf" | "text";
 export type SourceStage = "uploading" | "chunking" | "ready" | "failed";
 
-export type TaskOrigin = "ai" | "user";
-export type TaskState = "suggested" | "accepted" | "rejected" | "edited";
-
 export type RequirementOrigin = "ai" | "user";
 export type RequirementState = "suggested" | "accepted" | "rejected" | "edited";
-
-export type CoverageStatus = "covered" | "partial" | "unclear" | "missing";
-export type CoverageOrigin = "ai-suggested" | "user-confirmed";
-
-export type AuditSeverity = "info" | "warning" | "critical";
 
 // ---- API contract types ----
 
@@ -68,7 +60,7 @@ export interface JobStatusView {
   errorMessage: string | null;
 }
 
-// ---- Phase 2: Requirement + Task ----
+// ---- Requirements ----
 
 export interface RequirementSummary {
   id: string;
@@ -84,77 +76,6 @@ export interface RequirementSummary {
 
 export interface RequirementDetail extends RequirementSummary {
   chunkLinks: { chunkId: string; sourceId: string; filename: string; snippet: string }[];
-}
-
-export interface TaskSummary {
-  id: string;
-  projectId: string;
-  requirementId: string | null;
-  requirementTitle: string | null;
-  title: string;
-  description: string | null;
-  origin: TaskOrigin;
-  state: TaskState;
-  sourceLinks: { sourceId: string; filename: string }[];
-  createdAt: string;
-  updatedAt: string;
-}
-
-export interface TaskDetail extends TaskSummary {
-  chunkLinks: { chunkId: string; sourceId: string; filename: string; snippet: string }[];
-}
-
-// ---- Phase 3: Coverage + Audit ----
-
-export type AuditFindingKind =
-  | "uncovered_requirement"
-  | "partial_coverage"
-  | "vague_requirement"
-  | "deadline_risk"
-  | "orphan_task"
-  | "other";
-
-export interface CoverageLinkSummary {
-  id: string;
-  projectId: string;
-  requirementId: string;
-  requirementTitle: string;
-  taskId: string;
-  taskTitle: string;
-  status: CoverageStatus;
-  origin: CoverageOrigin;
-  rationale: string | null;
-  createdAt: string;
-  updatedAt: string;
-}
-
-export interface AuditFindingSummary {
-  id: string;
-  runId: string;
-  kind: AuditFindingKind;
-  severity: AuditSeverity;
-  message: string;
-  requirementId: string | null;
-  requirementTitle: string | null;
-  taskId: string | null;
-  taskTitle: string | null;
-  createdAt: string;
-}
-
-export interface AuditRunSummary {
-  id: string;
-  projectId: string;
-  summary: string | null;
-  findingCount: number;
-  criticalCount: number;
-  warningCount: number;
-  infoCount: number;
-  createdAt: string;
-}
-
-export interface AuditRunDetail extends AuditRunSummary {
-  findings: AuditFindingSummary[];
-  coverageLinks: CoverageLinkSummary[];
 }
 
 // ---- Phase 4: Decomposed PR Trust Brief & Diff Verification ----
@@ -216,4 +137,47 @@ export interface VerifyPRInput {
   specText?: string;
   rawDiff?: string;
   githubPrUrl?: string;
+}
+
+// ---- Phase 5: Repository index + persisted verification runs ----
+
+export interface RepositoryFileStatus {
+  path: string;
+  language: string | null;
+  lineCount: number | null;
+  sizeBytes: number;
+  chunksCount: number;
+}
+
+export interface RepositoryStatus {
+  connected: boolean;
+  commitSha: string | null;
+  refName: string | null;
+  indexedFilesCount: number;
+  codeChunksCount: number;
+  embeddingDim: number;
+  status: string;
+  files: RepositoryFileStatus[];
+}
+
+export interface RepositorySyncResult {
+  snapshotId: string;
+  commitSha: string;
+  filesIndexed: number;
+  chunksCreated: number;
+  skipped: string[];
+  embeddingModel: string;
+  embeddingDim: number;
+}
+
+export interface VerificationRunSummary {
+  id: string;
+  title: string;
+  commitSha: string;
+  coverageScore: number;
+  trustLevel: PRTrustLevel;
+  totalRequirements: number;
+  coveredCount: number;
+  missingCount: number;
+  createdAt: string;
 }

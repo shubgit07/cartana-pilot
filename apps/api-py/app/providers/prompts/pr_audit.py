@@ -13,11 +13,15 @@ def build_pr_verification_prompt(
     requirements: list[dict[str, Any]],
     changed_files: list[dict[str, Any]],
     diff_hunks: str,
+    repo_context: str = "",
 ) -> tuple[str, str]:
     """Stage 2 Prompt: Strict Code Verification (LLM Call 1).
 
     Matches each requirement strictly against code diff hunks and extracts
     concrete evidence snippets (file path + 2-5 line code snippet).
+    ``repo_context`` carries baseline repository code outside the diff so
+    the verifier does not falsely report 'missing' when a guard already
+    exists elsewhere (e.g. auth middleware).
     """
     system_prompt = (
         "You are an expert code verification engine. Your sole job is to cross-reference "
@@ -30,7 +34,11 @@ def build_pr_verification_prompt(
         "5. Test files alone are NOT evidence of a feature being implemented. If a requirement is only referenced or "
         "exercised by tests (test_*.py) and no implementation of that feature appears in the diff, verdict is 'missing' "
         "even if the tests would pass once the implementation exists.\n"
-        "6. Output MUST be valid JSON only matching the schema:\n"
+        "7. Repository context (when provided) is baseline code OUTSIDE the diff. If it already "
+        "implements a requirement (e.g. an auth guard in middleware/auth.py), the verdict is "
+        "'covered' — cite the repository file as evidence and say so in 'rationale'. Only mark "
+        "'missing' when neither the diff nor the repository context implements it.\n"
+        "8. Output MUST be valid JSON only matching the schema:\n"
         "{\n"
         '  "verdicts": [\n'
         '    {\n'
@@ -62,7 +70,12 @@ def build_pr_verification_prompt(
         f"### Feature Requirements:\n{chr(10).join(reqs_formatted)}\n\n"
         f"### Changed Files:\n{files_list}\n\n"
         f"### Git Diff Hunks:\n```diff\n{diff_hunks}\n```\n\n"
-        "Evaluate every single requirement against the diff and return the JSON object."
+        + (
+            f"### Repository Context (baseline code outside the diff):\n{repo_context}\n\n"
+            if repo_context.strip()
+            else ""
+        )
+        + "Evaluate every single requirement against the diff and return the JSON object."
     )
 
     return system_prompt, user_prompt

@@ -1,55 +1,82 @@
 "use client";
 
-import { CalendarDays, FileText } from "lucide-react";
-import { Card, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
+import { Box, CalendarDays, FileText } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
+import { useLatestRun } from "@/hooks/api";
 import { formatCount, formatDate } from "@/lib/format";
-import { ProjectDeleteButton } from "./ProjectDeleteButton";
 import type { ProjectDetail } from "@cartana/shared";
 
-export function ProjectHeader({
-  project,
-  onDeleted,
-}: {
-  project: ProjectDetail;
-  onDeleted: () => void;
-}) {
+/**
+ * Linear-style project hero: icon tile, title, description, and a strip
+ * of real-data pills. No card chrome — hierarchy comes from type scale.
+ */
+export function ProjectHeader({ project }: { project: ProjectDetail }) {
   return (
-    <Card>
-      <CardHeader className="flex flex-row items-start justify-between gap-4">
+    <div className="space-y-3 pt-1">
+      <div className="flex items-start gap-3">
+        <span
+          aria-hidden="true"
+          className="grid size-10 shrink-0 place-items-center rounded-lg bg-warning/10 text-warning"
+        >
+          <Box className="size-5" />
+        </span>
         <div className="min-w-0 space-y-1">
-          <span className="eyebrow">Project</span>
-          <CardTitle className="break-words font-serif text-xl leading-tight sm:text-2xl">
+          <h1 className="break-words font-serif text-2xl font-semibold leading-tight tracking-tight">
             {project.name}
-          </CardTitle>
-
+          </h1>
           {project.description && (
-            <CardDescription className="max-w-2xl break-words leading-relaxed">
+            <p className="max-w-2xl break-words text-sm leading-relaxed text-muted-foreground">
               {project.description}
-            </CardDescription>
+            </p>
           )}
-
-          <div className="flex flex-wrap items-center gap-2 pt-2.5">
-            <Badge variant="muted" className="gap-1">
-              <FileText className="h-3 w-3" aria-hidden="true" />
-              {formatCount(project.sources.length, "source")}
-            </Badge>
-            <Badge variant="muted" className="gap-1">
-              <CalendarDays className="h-3 w-3" aria-hidden="true" />
-              <span>Created</span>
-              <time dateTime={project.createdAt} className="tabular" title={project.createdAt}>
-                {formatDate(project.createdAt)}
-              </time>
-            </Badge>
-          </div>
         </div>
+      </div>
 
-        <ProjectDeleteButton
-          projectId={project.id}
-          projectName={project.name}
-          onDeleted={onDeleted}
-        />
-      </CardHeader>
-    </Card>
+      <div className="flex flex-wrap items-center gap-1.5 pl-[52px]">
+        <Badge variant="muted" className="gap-1">
+          <FileText className="h-3 w-3" aria-hidden="true" />
+          {formatCount(project.sources.length, "source")}
+        </Badge>
+        <Badge variant="muted" className="gap-1">
+          <CalendarDays className="h-3 w-3" aria-hidden="true" />
+          <span>Created</span>
+          <time dateTime={project.createdAt} className="tabular" title={project.createdAt}>
+            {formatDate(project.createdAt)}
+          </time>
+        </Badge>
+        <AuditStatusPill projectId={project.id} />
+      </div>
+    </div>
+  );
+}
+
+/** Live audit status — same honest mapping as the project table rows. */
+function AuditStatusPill({ projectId }: { projectId: string }) {
+  const { run, loading } = useLatestRun(projectId);
+
+  if (loading) {
+    return <Badge variant="muted">…</Badge>;
+  }
+  if (!run) {
+    return <Badge variant="muted">Not audited</Badge>;
+  }
+  if (run.trustLevel === "low") {
+    return (
+      <Badge variant="danger" dot>
+        Low trust
+      </Badge>
+    );
+  }
+  if (run.missingCount > 0) {
+    return (
+      <Badge variant="warning" dot>
+        {run.missingCount} missing
+      </Badge>
+    );
+  }
+  return (
+    <Badge variant="success" dot>
+      Clean
+    </Badge>
   );
 }

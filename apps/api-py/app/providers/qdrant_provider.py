@@ -1,141 +1,193 @@
-"""Qdrant Cloud Vector Database Provider.
+"""Qdrant vector store for repository code chunks.
 
-Provides a clean interface to Qdrant Cloud (or local Qdrant memory fallback) for storing
-and searching vector embeddings with 768-dimension COSINE similarity distance.
+Qdrant is the primary vector index for Cartana: Postgres (Neon) remains the
+source of truth for files, chunks, snapshots, and verdicts, while Qdrant
+holds ``{id, vector, payload}`` mirrors used for semantic retrieval.
+
+Design notes:
+- Point id == ``CodeChunk.id`` (opaque string) so the DB row and the point
+  are trivially joinable by id. Re-syncs upsert the same ids: idempotent.
+- Payload carries everything the verifier needs without a DB round-trip:
+  ``projectId`` (isolation filter), ``path``, ``startLine``, ``endLine``,
+  and ``content`` (the chunk text injected into the LLM prompt).
+- All Qdrant I/O is best-effort at the call site: indexing and verification
+  must succeed (diff-only / keyword fallback) when Qdrant is unreachable.
+- ``get_code_index()`` returns None when Qdrant is not configured, so local
+  dev and tests run without any vector service.
 """
 from __future__ import annotations
 
 import logging
 from dataclasses import dataclass
-from typing import Any
 
 from app.config import get_settings
+from app.db.models import CodeChunk
 
 logger = logging.getLogger(__name__)
 
+VECTOR_SIZE = 768
+
 
 @dataclass
-class QdrantChunkPoint:
+class CodePoint:
+    """One chunk to upsert: id matches the Postgres CodeChunk row."""
+
     id: str
     vector: list[float]
-    payload: dict[str, Any]
+    project_id: str
+    path: str
+    start_line: int
+    end_line: int
+    content: str
 
 
-class QdrantProvider:
-    """Wrapper for Qdrant Cloud client interactions."""
+@dataclass
+class QdrantHit:
+    """One scored retrieval result (cosine similarity, higher is better)."""
 
-    def __init__(self, url: str | None = None, api_key: str | None = None) -> None:
-        settings = get_settings()
-        self._url = url or settings.qdrant_url
-        self._api_key = api_key or settings.qdrant_api_key
-        self._collection_name = settings.qdrant_collection_name
-        self._dim = settings.embedding_dim
-        self._client: Any = None
+    path: str
+    start_line: int
+    end_line: int
+    content: str
+    score: float
 
-    def _get_client(self) -> Any:
-        if self._client is not None:
-            return self._client
 
+@dataclass
+class QdrantCodeIndex:
+    url: str
+    api_key: str | None = None
+    collection: str = "cartana_code_chunks"
+    dim: int = VECTOR_SIZE
+    timeout_seconds: float = 20.0
+
+    def _client(self):  # type: ignore[no-untyped-def]
+        from qdrant_client import QdrantClient
+
+        return QdrantClient(
+            url=self.url,
+            api_key=self.api_key,
+            timeout=self.timeout_seconds,
+            # Skip the constructor version probe: serverless wake-ups make it
+            # slow/flaky, and sync/search degrade gracefully without it.
+            check_compatibility=False,
+        )
+
+    def ensure_collection(self) -> None:
+        """Create the collection on first use; no-op when it exists."""
+        from qdrant_client.http.models import Distance, VectorParams
+
+        client = self._client()
         try:
-            from qdrant_client import QdrantClient
-        except ImportError as exc:
-            raise RuntimeError(
-                "qdrant-client package is required. Install with: pip install qdrant-client"
-            ) from exc
+            if client.collection_exists(self.collection):
+                return
+            client.create_collection(
+                collection_name=self.collection,
+                vectors_config=VectorParams(size=self.dim, distance=Distance.COSINE),
+            )
+            logger.info("Qdrant collection %r created (dim=%d).", self.collection, self.dim)
+        finally:
+            client.close()
 
-        if self._url and self._api_key:
-            logger.info("Initializing Qdrant Cloud client at %s", self._url)
-            self._client = QdrantClient(url=self._url, api_key=self._api_key, timeout=30)
-        else:
-            logger.warning("QDRANT_URL or QDRANT_API_KEY missing — using in-memory Qdrant client")
-            self._client = QdrantClient(location=":memory:")
+    def upsert_chunks(self, points: list[CodePoint]) -> int:
+        """Upsert chunk points (idempotent by CodeChunk id). Returns count."""
+        from qdrant_client.http.models import PointStruct
 
-        self._ensure_collection()
-        return self._client
-
-    def _ensure_collection(self) -> None:
-        from qdrant_client.http import models
-
-        try:
-            collections = [c.name for c in self._client.get_collections().collections]
-            if self._collection_name not in collections:
-                logger.info("Creating Qdrant collection: %s (dim=%d)", self._collection_name, self._dim)
-                self._client.create_collection(
-                    collection_name=self._collection_name,
-                    vectors_config=models.VectorParams(
-                        size=self._dim,
-                        distance=models.Distance.COSINE,
-                    ),
-                )
-        except Exception as exc:
-            logger.error("Failed to check/create Qdrant collection %s: %s", self._collection_name, exc)
-            raise
-
-    def upsert_chunks(self, points: list[QdrantChunkPoint]) -> int:
-        """Upsert a list of vector chunk points into Qdrant Cloud."""
         if not points:
             return 0
-
-        from qdrant_client.http import models
-
-        client = self._get_client()
-        qpoints = [
-            models.PointStruct(
-                id=p.id,
-                vector=p.vector,
-                payload=p.payload,
+        client = self._client()
+        try:
+            client.upsert(
+                collection_name=self.collection,
+                points=[
+                    PointStruct(
+                        id=p.id,
+                        vector=p.vector,
+                        payload={
+                            "projectId": p.project_id,
+                            "path": p.path,
+                            "startLine": p.start_line,
+                            "endLine": p.end_line,
+                            "content": p.content,
+                        },
+                    )
+                    for p in points
+                ],
             )
-            for p in points
-        ]
+            return len(points)
+        finally:
+            client.close()
 
-        client.upsert(
-            collection_name=self._collection_name,
-            points=qpoints,
-            wait=True,
-        )
-        logger.info("Upserted %d vector points to Qdrant collection %s", len(points), self._collection_name)
-        return len(points)
+    def search(
+        self, *, project_id: str, vector: list[float], top_k: int = 3
+    ) -> list[QdrantHit]:
+        """Cosine search scoped to one project via payload filter."""
+        from qdrant_client.http.models import FieldCondition, Filter, MatchValue
 
-    def search_similar(
-        self, query_vector: list[float], limit: int = 5, filter_payload: dict[str, Any] | None = None
-    ) -> list[dict[str, Any]]:
-        """Search for top-K similar vector chunks in Qdrant."""
-        client = self._get_client()
-        from qdrant_client.http import models
-
-        query_filter = None
-        if filter_payload:
-            must_conditions = [
-                models.FieldCondition(
-                    key=k,
-                    match=models.MatchValue(value=v),
-                )
-                for k, v in filter_payload.items()
-            ]
-            query_filter = models.Filter(must=must_conditions)
-
-        results = client.search(
-            collection_name=self._collection_name,
-            query_vector=query_vector,
-            query_filter=query_filter,
-            limit=limit,
-        )
-
-        return [
-            {
-                "id": str(r.id),
-                "score": r.score,
-                "payload": r.payload or {},
-            }
-            for r in results
-        ]
+        client = self._client()
+        try:
+            result = client.query_points(
+                collection_name=self.collection,
+                query=vector,
+                query_filter=Filter(
+                    must=[FieldCondition(key="projectId", match=MatchValue(value=project_id))]
+                ),
+                limit=top_k,
+                with_payload=True,
+            )
+            hits: list[QdrantHit] = []
+            for point in result.points:
+                payload = point.payload or {}
+                content = payload.get("content", "")
+                if not content:
+                    continue
+                hits.append(QdrantHit(
+                    path=str(payload.get("path", "")),
+                    start_line=int(payload.get("startLine", 1)),
+                    end_line=int(payload.get("endLine", 1)),
+                    content=str(content),
+                    score=float(point.score),
+                ))
+            return hits
+        finally:
+            client.close()
 
 
-_qdrant_instance: QdrantProvider | None = None
+def get_code_index() -> QdrantCodeIndex | None:
+    """Return the configured Qdrant code index, or None when not configured."""
+    settings = get_settings()
+    if not settings.qdrant_url:
+        return None
+    dim = settings.embedding_dim or VECTOR_SIZE
+    return QdrantCodeIndex(
+        url=settings.qdrant_url,
+        api_key=settings.qdrant_api_key,
+        collection=settings.qdrant_collection_name or "cartana_code_chunks",
+        dim=dim,
+    )
 
 
-def get_qdrant_provider() -> QdrantProvider:
-    global _qdrant_instance
-    if _qdrant_instance is None:
-        _qdrant_instance = QdrantProvider()
-    return _qdrant_instance
+def build_code_points(
+    items: list[tuple[CodeChunk, str]], *, project_id: str
+) -> list[CodePoint]:
+    """Map ``(CodeChunk row, file path)`` pairs to Qdrant points.
+
+    Rows without vectors are skipped (embedding failures still leave a
+    usable Postgres row for keyword fallback and audit).
+    """
+    points: list[CodePoint] = []
+    for chunk, path in items:
+        vector = chunk.embedding
+        # NOTE: pgvector returns numpy arrays on some dialects, where
+        # truthiness is ambiguous — check length instead of truth value.
+        if vector is None or len(vector) == 0:
+            continue
+        points.append(CodePoint(
+            id=chunk.id,
+            vector=list(vector),
+            project_id=project_id,
+            path=path,
+            start_line=chunk.start_line,
+            end_line=chunk.end_line,
+            content=chunk.content,
+        ))
+    return points
