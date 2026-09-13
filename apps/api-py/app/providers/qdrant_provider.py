@@ -151,6 +151,22 @@ class QdrantCodeIndex:
         finally:
             client.close()
 
+    def delete_by_project(self, project_id: str) -> None:
+        """Delete every point whose payload ``projectId`` matches. Idempotent."""
+        from qdrant_client.http.models import FieldCondition, Filter, MatchValue
+
+        client = self._client()
+        try:
+            client.delete(
+                collection_name=self.collection,
+                points_selector=Filter(
+                    must=[FieldCondition(key="projectId", match=MatchValue(value=project_id))]
+                ),
+            )
+            logger.info("Qdrant points deleted (project_id=%s).", project_id)
+        finally:
+            client.close()
+
 
 def get_code_index() -> QdrantCodeIndex | None:
     """Return the configured Qdrant code index, or None when not configured."""

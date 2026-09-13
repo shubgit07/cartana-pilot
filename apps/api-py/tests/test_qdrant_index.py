@@ -136,3 +136,28 @@ def test_build_code_points_skips_vectorless_rows():
     assert len(points) == 1
     assert points[0].path == "app/a.py"
     assert points[0].vector == [0.0, 0.1]
+
+
+def test_delete_by_project_scopes_filter_to_project_id():
+    from app.providers.qdrant_provider import QdrantCodeIndex
+
+    calls: dict = {}
+
+    class FakeClient:
+        def delete(self, *, collection_name, points_selector) -> None:
+            calls["collection_name"] = collection_name
+            calls["points_selector"] = points_selector
+
+        def close(self) -> None:
+            calls["closed"] = True
+
+    index = QdrantCodeIndex(url="http://localhost:6333", collection="code")
+    index._client = lambda: FakeClient()  # type: ignore[method-assign]
+    index.delete_by_project("proj-1")
+
+    assert calls["collection_name"] == "code"
+    assert calls["closed"] is True
+    must = calls["points_selector"].must
+    assert len(must) == 1
+    assert must[0].key == "projectId"
+    assert must[0].match.value == "proj-1"

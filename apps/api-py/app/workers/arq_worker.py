@@ -141,6 +141,11 @@ def execute_chunk_stage(source_id: str, project_id: str, user_id: str, text: str
     logger.info("arq:chunk:start (source_id=%s)", source_id)
     session = SessionLocal()
     try:
+        # The project may have been deleted while ingestion was in flight —
+        # skip instead of resurrecting orphan rows.
+        if session.get(Source, source_id) is None:
+            logger.info("arq:chunk:skip (source_id=%s, deleted)", source_id)
+            return []
         session.query(Chunk).filter(Chunk.source_id == source_id).delete()
         session.commit()
 
@@ -203,7 +208,8 @@ def execute_extract_requirements_stage(source_id: str, project_id: str, user_id:
     try:
         source = session.get(Source, source_id)
         if source is None:
-            raise RuntimeError(f"Source {source_id} not found")
+            logger.info("arq:extract-reqs:skip (source_id=%s, deleted)", source_id)
+            return 0
 
         chunks = (
             session.query(Chunk)

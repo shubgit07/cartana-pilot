@@ -29,6 +29,15 @@ function writeStored(projectId: string, messages: ChatMessage[]) {
   }
 }
 
+export function clearChatHistory(projectId: string) {
+  if (typeof window === "undefined") return;
+  try {
+    window.localStorage.removeItem(STORAGE_PREFIX + projectId);
+  } catch {
+    // private mode — ignore
+  }
+}
+
 export function useChat(projectId: string) {
   const [messages, setMessages] = React.useState<ChatMessage[]>([]);
   const [hydrated, setHydrated] = React.useState(false);

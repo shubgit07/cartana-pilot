@@ -60,6 +60,10 @@ class StorageProvider(Protocol):
         """Delete ``key``; a missing object is not an error."""
         ...
 
+    def remove_prefix(self, prefix: str) -> None:
+        """Delete every object under ``prefix``; a missing prefix is not an error."""
+        ...
+
 
 class LocalStorageProvider:
     """Stores files on the local filesystem under ``storage_local_root``."""
@@ -90,6 +94,16 @@ class LocalStorageProvider:
 
     def remove(self, key: str) -> None:
         self.path_for(key).unlink(missing_ok=True)
+
+    def remove_prefix(self, prefix: str) -> None:
+        """Delete the ``projects/<id>/`` directory tree. Scoped under the root."""
+        target = self.path_for(prefix)
+        # Never delete the root itself or anything outside it.
+        if target.resolve() == self.root:
+            raise ValueError(f"Refusing to remove storage root: {prefix!r}")
+        import shutil
+
+        shutil.rmtree(target, ignore_errors=True)
 
 
 class S3StorageProvider:
@@ -149,6 +163,26 @@ class S3StorageProvider:
             error_code = e.response.get("Error", {}).get("Code", "")
             if error_code not in ("NoSuchKey", "404"):
                 logger.warning("Failed to delete object from S3 (bucket=%s, key=%s): %s", self.bucket, key, e)
+
+    def remove_prefix(self, prefix: str) -> None:
+        """Delete every S3 object under ``prefix`` (paginated, 1000/batch)."""
+        try:
+            paginator = self.client.get_paginator("list_objects_v2")
+            batch: list[dict[str, str]] = []
+            for page in paginator.paginate(Bucket=self.bucket, Prefix=prefix):
+                for obj in page.get("Contents", []):
+                    batch.append({"Key": obj["Key"]})
+                    if len(batch) == 1000:
+                        self.client.delete_objects(
+                            Bucket=self.bucket, Delete={"Objects": batch}
+                        )
+                        batch = []
+            if batch:
+                self.client.delete_objects(Bucket=self.bucket, Delete={"Objects": batch})
+        except ClientError as e:
+            logger.warning(
+                "Failed to remove S3 prefix (bucket=%s, prefix=%s): %s", self.bucket, prefix, e
+            )
 
 
 @lru_cache(maxsize=1)

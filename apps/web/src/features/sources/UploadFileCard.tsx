@@ -9,12 +9,13 @@ import { useToast } from "@/components/ui/toast";
 import { useSourceStatus, useSources } from "@/hooks/api";
 import { messageOf } from "@/hooks/api";
 import { cn } from "@/lib/cn";
+import type { SourceSummary } from "@cartana/shared";
 
 type Props = {
   projectId: string;
   busy: boolean;
   onBusyChange: (next: boolean) => void;
-  onUploaded?: () => void;
+  onUploaded?: (source: SourceSummary) => void;
 };
 
 /** Rotating copy shown while the pipeline runs — keeps the wait feeling alive. */
@@ -88,7 +89,7 @@ export function UploadFileCard({ projectId, busy, onBusyChange, onUploaded }: Pr
       const source = await uploadFile(file);
       setSourceId(source.id);
       setCopyIndex(0);
-      onUploaded?.();
+      onUploaded?.(source);
       toast({ title: "Upload started", description: `${file.name} is processing…` });
     } catch (e: unknown) {
       toast({

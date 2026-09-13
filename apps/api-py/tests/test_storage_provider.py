@@ -75,3 +75,44 @@ def test_s3_storage_provider_save_and_read():
 
     # Deleting missing object should not raise error
     provider.remove(key)
+
+
+def test_local_remove_prefix_deletes_project_tree_only(tmp_path):
+    provider = LocalStorageProvider(root=tmp_path)
+    provider.save("projects/proj-a/1-a.txt", b"a")
+    provider.save("projects/proj-a/2-b.txt", b"b")
+    provider.save("projects/proj-b/1-c.txt", b"c")
+
+    provider.remove_prefix("projects/proj-a/")
+
+    assert provider.read("projects/proj-b/1-c.txt") == b"c"
+    with pytest.raises(FileNotFoundError):
+        provider.read("projects/proj-a/1-a.txt")
+
+    # Missing prefix is a no-op
+    provider.remove_prefix("projects/does-not-exist/")
+
+
+def test_local_remove_prefix_refuses_storage_root(tmp_path):
+    provider = LocalStorageProvider(root=tmp_path)
+    with pytest.raises(ValueError):
+        provider.remove_prefix("./")
+
+
+@mock_aws
+def test_s3_remove_prefix_deletes_only_matching_keys():
+    bucket_name = "cartana-test-bucket"
+    region = "us-east-1"
+    s3_client = boto3.client("s3", region_name=region)
+    s3_client.create_bucket(Bucket=bucket_name)
+
+    provider = S3StorageProvider(bucket=bucket_name, region=region)
+    provider.save("projects/proj-a/1-a.txt", b"a")
+    provider.save("projects/proj-a/2-b.txt", b"b")
+    provider.save("projects/proj-b/1-c.txt", b"c")
+
+    provider.remove_prefix("projects/proj-a/")
+
+    assert provider.read("projects/proj-b/1-c.txt") == b"c"
+    with pytest.raises(FileNotFoundError):
+        provider.read("projects/proj-a/1-a.txt")

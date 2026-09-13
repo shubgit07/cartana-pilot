@@ -220,3 +220,52 @@ def test_delete_project_owned_by_another_user_returns_404(
     project = seed_project(db_session, user_id=OTHER_USER_ID)
 
     assert client.delete(f"/projects/{project.id}").status_code == 404
+
+
+def test_delete_project_cleans_storage_and_qdrant(
+    client: TestClient, db_session: Session, monkeypatch
+) -> None:
+    import app.providers.qdrant_provider as qdrant_module
+    import app.providers.storage_provider as storage_module
+
+    project = seed_project(db_session)
+    seed_source(db_session, project, chunks=2)
+
+    removed_prefixes: list[str] = []
+    deleted_projects: list[str] = []
+
+    class FakeStorage:
+        def remove_prefix(self, prefix: str) -> None:
+            removed_prefixes.append(prefix)
+
+    class FakeIndex:
+        def delete_by_project(self, project_id: str) -> None:
+            deleted_projects.append(project_id)
+
+    monkeypatch.setattr(storage_module, "get_storage", lambda: FakeStorage())
+    monkeypatch.setattr(qdrant_module, "get_code_index", lambda: FakeIndex())
+
+    assert client.delete(f"/projects/{project.id}").status_code == 204
+
+    assert removed_prefixes == [f"projects/{project.id}/"]
+    assert deleted_projects == [project.id]
+    assert db_session.query(Source).count() == 0
+
+
+def test_delete_project_still_204_when_cleanup_fails(
+    client: TestClient, db_session: Session, monkeypatch
+) -> None:
+    import app.providers.qdrant_provider as qdrant_module
+    import app.providers.storage_provider as storage_module
+
+    project = seed_project(db_session)
+
+    class BrokenStorage:
+        def remove_prefix(self, prefix: str) -> None:
+            raise RuntimeError("disk on fire")
+
+    monkeypatch.setattr(storage_module, "get_storage", lambda: BrokenStorage())
+    monkeypatch.setattr(qdrant_module, "get_code_index", lambda: None)
+
+    assert client.delete(f"/projects/{project.id}").status_code == 204
+    assert client.get(f"/projects/{project.id}").status_code == 404

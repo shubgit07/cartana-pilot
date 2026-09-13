@@ -6,6 +6,7 @@ import { ConfirmDialog } from "@/components/common/ConfirmDialog";
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/components/ui/toast";
 import { projectsApi, ApiError } from "@/lib/api";
+import { clearChatHistory } from "@/hooks/api/chat";
 import { cn } from "@/lib/cn";
 
 type Props = {
@@ -23,6 +24,7 @@ export function ProjectDeleteButton({ projectId, projectName, onDeleted }: Props
     setBusy(true);
     try {
       await projectsApi.remove(projectId);
+      clearChatHistory(projectId);
       toast({ title: "Project deleted", description: projectName });
       onDeleted();
     } catch (e: unknown) {

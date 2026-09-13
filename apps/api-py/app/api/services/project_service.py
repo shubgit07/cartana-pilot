@@ -7,6 +7,8 @@ existence of another user's rows.
 """
 from __future__ import annotations
 
+import logging
+
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
@@ -19,6 +21,8 @@ from app.api.schemas.project import (
 )
 from app.core.errors import NotFoundError
 from app.db.models import Chunk, Project, Source
+
+logger = logging.getLogger(__name__)
 
 # Correlated subqueries reproduce Prisma's ``_count`` selections without
 # loading the related rows.
@@ -93,6 +97,37 @@ def update_project(db: Session, user_id: str, project_id: str, payload: UpdatePr
 
 
 def delete_project(db: Session, user_id: str, project_id: str) -> None:
+    """Hard-delete a project and everything it owns, everywhere.
+
+    Postgres rows go via ORM + FK cascades. Blob storage
+    (``projects/<id>/``) and Qdrant code points are removed best-effort
+    afterwards: cleanup failures are logged but never fail the delete,
+    so the API still returns 204 with no orphaned project row.
+    """
     project = get_owned_project(db, user_id, project_id)
     db.delete(project)
     db.commit()
+
+    try:
+        from app.providers.storage_provider import get_storage
+
+        get_storage().remove_prefix(f"projects/{project_id}/")
+    except Exception:
+        logger.warning("project storage cleanup failed (project_id=%s)", project_id, exc_info=True)
+
+    try:
+        from app.providers.qdrant_provider import get_code_index
+
+        index = get_code_index()
+        if index is not None:
+            index.delete_by_project(project_id)
+    except Exception:
+        logger.warning("project qdrant cleanup failed (project_id=%s)", project_id, exc_info=True)
+
+    try:
+        from app.workers.arq_worker import _job_status_registry
+
+        for job_id in [k for k in _job_status_registry if project_id in k]:
+            _job_status_registry.pop(job_id, None)
+    except Exception:
+        logger.warning("project job-registry cleanup failed (project_id=%s)", project_id, exc_info=True)

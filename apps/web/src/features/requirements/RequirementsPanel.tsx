@@ -21,12 +21,12 @@ import {
   Upload,
 } from "lucide-react";
 import { useToast } from "@/components/ui/toast";
-import { messageOf, useRequirements, useSources } from "@/hooks/api";
+import { messageOf, useRequirements, useSources, useSourceStatus } from "@/hooks/api";
 import { RequirementRow } from "./RequirementRow";
 import { UploadFileCard } from "../sources/UploadFileCard";
 import { PasteNotesForm } from "../sources/PasteNotesForm";
 import { SourceStatusBadge } from "../sources/SourceStatusBadge";
-import type { RequirementSummary } from "@cartana/shared";
+import type { RequirementSummary, SourceSummary } from "@cartana/shared";
 
 type Props = { projectId: string };
 
@@ -38,6 +38,18 @@ export function RequirementsPanel({ projectId }: Props) {
   const [pendingDelete, setPendingDelete] = React.useState<RequirementSummary | null>(null);
   const [showImport, setShowImport] = React.useState(false);
   const [busy, setBusy] = React.useState(false);
+  // Source being processed in the background. The ingestion pipeline finishes
+  // long after the upload POST returns, so we poll its status and refresh the
+  // lists when it reaches a terminal state — otherwise the UI looks stuck
+  // until the tab remounts (which re-fetches everything).
+  const [trackedSourceId, setTrackedSourceId] = React.useState<string | null>(null);
+  const trackedStatus = useSourceStatus(projectId, trackedSourceId);
+  const handledTerminalRef = React.useRef<string | null>(null);
+
+  React.useEffect(() => {
+    setTrackedSourceId(null);
+    handledTerminalRef.current = null;
+  }, [projectId]);
 
   const acceptedCount = requirements?.filter((r) => r.state === "accepted").length ?? 0;
   const totalCount = requirements?.length ?? 0;
@@ -46,6 +58,40 @@ export function RequirementsPanel({ projectId }: Props) {
   const handleAllReload = React.useCallback(async () => {
     await Promise.all([reload(), reloadSources()]);
   }, [reload, reloadSources]);
+
+  const handleTrackSource = React.useCallback(
+    (source: SourceSummary) => {
+      handledTerminalRef.current = null;
+      setTrackedSourceId(source.id);
+      // Immediate reload so the new source appears in the badges strip
+      // while the pipeline runs; the completion effect below reloads again.
+      void handleAllReload();
+    },
+    [handleAllReload]
+  );
+
+  // When the tracked source finishes processing, refresh the panels so the
+  // extracted requirements appear without a manual refresh or tab switch.
+  React.useEffect(() => {
+    if (!trackedSourceId || !trackedStatus) return;
+    if (trackedStatus.status !== "processed" && trackedStatus.status !== "failed") return;
+    if (handledTerminalRef.current === trackedSourceId) return;
+    handledTerminalRef.current = trackedSourceId;
+    const terminal = trackedStatus.status;
+    const message = trackedStatus.errorMessage;
+    void handleAllReload().then(() => {
+      if (terminal === "processed") {
+        toast({ title: "Requirements ready", description: "Extraction finished." });
+      } else {
+        toast({
+          title: "Processing failed",
+          description: message ?? "Try again",
+          variant: "destructive",
+        });
+      }
+      setTrackedSourceId(null);
+    });
+  }, [trackedSourceId, trackedStatus, handleAllReload, toast]);
 
   async function setState(id: string, state: "accepted" | "rejected") {
     try {
@@ -160,13 +206,13 @@ export function RequirementsPanel({ projectId }: Props) {
                 projectId={projectId}
                 busy={busy}
                 onBusyChange={setBusy}
-                onUploaded={handleAllReload}
+                onUploaded={handleTrackSource}
               />
               <PasteNotesForm
                 projectId={projectId}
                 busy={busy}
                 onBusyChange={setBusy}
-                onUploaded={handleAllReload}
+                onUploaded={handleTrackSource}
               />
             </div>
           </CardContent>

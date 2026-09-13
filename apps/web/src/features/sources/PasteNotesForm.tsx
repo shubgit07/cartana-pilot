@@ -12,6 +12,7 @@ import { useToast } from "@/components/ui/toast";
 import { useUnsavedChanges } from "@/hooks/common";
 import { useSources } from "@/hooks/api";
 import { messageOf } from "@/hooks/api";
+import type { SourceSummary } from "@cartana/shared";
 
 const DEFAULT_FILENAME = "notes.txt";
 
@@ -19,7 +20,7 @@ type Props = {
   projectId: string;
   busy: boolean;
   onBusyChange: (next: boolean) => void;
-  onUploaded?: () => void;
+  onUploaded?: (source: SourceSummary) => void;
 };
 
 export function PasteNotesForm({ projectId, busy, onBusyChange, onUploaded }: Props) {
@@ -41,8 +42,8 @@ export function PasteNotesForm({ projectId, busy, onBusyChange, onUploaded }: Pr
     setSubmitting(true);
     onBusyChange(true);
     try {
-      await createFromText(cleanFilename, cleanContent);
-      onUploaded?.();
+      const source = await createFromText(cleanFilename, cleanContent);
+      onUploaded?.(source);
       setContent("");
       setFilename(DEFAULT_FILENAME);
       setOpen(false);
