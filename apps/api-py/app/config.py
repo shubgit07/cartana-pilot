@@ -37,10 +37,15 @@ class Settings(BaseSettings):
     cloudflare_account_id: str | None = None
     cloudflare_api_token: str | None = None
 
-    # Qdrant Cloud (Vector DB)
+    # Qdrant Cloud (Vector DB) — single shared collection; points carry
+    # payload {projectId, kind} so docs and code coexist with scoped queries.
     qdrant_url: str | None = None
     qdrant_api_key: str | None = None
     qdrant_collection_name: str = "cartana_chunks"
+
+    # GitHub (public-repo Codebase Index; server token lifts anonymous 60/hr
+    # rate limit to 5,000/hr — public data only, no OAuth in MVP)
+    github_token: str | None = None
 
     # Upstash Redis REST (for serverless caching and rate limiting)
     upstash_redis_rest_url: str | None = None

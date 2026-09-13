@@ -36,6 +36,7 @@ import {
 import { useToast } from "@/components/ui/toast";
 import { cn } from "@/lib/cn";
 import { useVerifyPR } from "@/hooks/api/audit";
+import { RepoVerifyPicker } from "./RepoVerifyPicker";
 import { downloadFile, formatPRBriefAsGithubMarkdown } from "@/lib/formatPrBrief";
 import type {
   PRRiskAlert,
@@ -108,7 +109,7 @@ export function PRTrustBriefDashboard({ projectId, externalBrief = null }: Props
   }, [externalBrief, loadBrief]);
 
   const [copied, setCopied] = React.useState(false);
-  const [inputTab, setInputTab] = React.useState<"paste_diff" | "github_pr">("paste_diff");
+  const [inputTab, setInputTab] = React.useState<"paste_diff" | "github_pr" | "connected_repo">("paste_diff");
   const [rawDiff, setRawDiff] = React.useState("");
   const [githubPrUrl, setGithubPrUrl] = React.useState("");
   const [specText, setSpecText] = React.useState("");
@@ -290,12 +291,38 @@ export function PRTrustBriefDashboard({ projectId, externalBrief = null }: Props
                 <ExternalLink className="h-3.5 w-3.5" />
                 GitHub PR URL
               </button>
+              <button
+                type="button"
+                onClick={() => setInputTab("connected_repo")}
+                className={cn(
+                  "flex items-center gap-1.5 rounded-md px-3 py-1.5 text-xs font-medium transition-all",
+                  inputTab === "connected_repo"
+                    ? "bg-primary text-primary-foreground shadow-xs"
+                    : "text-muted-foreground hover:text-foreground"
+                )}
+              >
+                <GitPullRequest className="h-3.5 w-3.5" />
+                Connected Repo
+              </button>
             </div>
           </div>
         </CardHeader>
 
         <CardContent>
           <form onSubmit={handleVerify} className="space-y-4">
+            {inputTab === "connected_repo" ? (
+              <RepoVerifyPicker
+                projectId={projectId}
+                verifying={verifying}
+                onVerifyUrl={(url) =>
+                  verify({
+                    githubPrUrl: url,
+                    specText: specText.trim() ? specText : undefined,
+                  })
+                }
+              />
+            ) : (
+              <>
             {inputTab === "paste_diff" ? (
               <div className="space-y-1.5">
                 <label className="text-xs font-medium text-muted-foreground">Git Diff</label>
@@ -358,6 +385,8 @@ export function PRTrustBriefDashboard({ projectId, externalBrief = null }: Props
                 )}
               </Button>
             </div>
+              </>
+            )}
           </form>
         </CardContent>
       </Card>

@@ -61,13 +61,20 @@ def verify_pr_and_generate_trust_brief(
 
     if pr_url and not diff_raw:
         clean_url = pr_url.rstrip("/")
-        diff_url = (
-            f"{clean_url}.diff"
-            if "github.com" in clean_url
+        if (
+            "github.com" in clean_url
             and "/pull/" in clean_url
             and not clean_url.endswith(".diff")
-            else clean_url
-        )
+        ):
+            diff_url = f"{clean_url}.diff"
+        elif (
+            "github.com" in clean_url
+            and "/commit/" in clean_url
+            and not clean_url.endswith(".patch")
+        ):
+            diff_url = f"{clean_url}.patch"
+        else:
+            diff_url = clean_url
         try:
             response = httpx.get(
                 diff_url,

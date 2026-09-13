@@ -1,12 +1,18 @@
-"""Repository index routes — sync a workspace snapshot and report index status."""
+"""Repository index routes — connect a GitHub repo, sync, and report status."""
 from __future__ import annotations
 
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, Query, Response, status
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
 from app.api.deps import CurrentUser, get_current_user
 from app.api.schemas.repository import (
+    CommitListResponse,
+    ConnectRepositoryInput,
+    ConnectRepositoryResponse,
+    GitHubCommitItem,
+    GitHubPullItem,
+    PullListResponse,
     RepoFileStatus,
     RepositoryStatusResponse,
     SyncRepositoryInput,
@@ -20,11 +26,98 @@ from app.db.models import (
     IndexRun,
     RepositoryConnection,
     RepositoryFile,
+    RepositoryProvider,
     RepositorySnapshot,
 )
 from app.db.session import get_db
 
 router = APIRouter(tags=["repository"])
+
+
+def _to_connect_response(result: repo_index_service.GitHubSyncResult) -> ConnectRepositoryResponse:
+    return ConnectRepositoryResponse(
+        connectionId=result.connection_id,
+        repoUrl=result.repo_url,
+        displayName=result.display_name,
+        defaultBranch=result.default_branch,
+        commitSha=result.commit_sha,
+        filesIndexed=result.files_indexed,
+        chunksCreated=result.chunks_created,
+        skipped=result.skipped,
+        upToDate=result.up_to_date,
+    )
+
+
+@router.post("/connect", response_model=ConnectRepositoryResponse)
+def connect_repository(
+    project_id: str,
+    payload: ConnectRepositoryInput,
+    db: Session = Depends(get_db),
+    user: CurrentUser = Depends(get_current_user),
+) -> ConnectRepositoryResponse:
+    """Link a public GitHub repo (URL-only) and build the Codebase Index."""
+    return _to_connect_response(
+        repo_index_service.connect_repository(db, project_id=project_id, user_id=user.id, repo_url=payload.repoUrl)
+    )
+
+
+@router.post("/resync", response_model=ConnectRepositoryResponse)
+def resync_repository(
+    project_id: str,
+    db: Session = Depends(get_db),
+    user: CurrentUser = Depends(get_current_user),
+) -> ConnectRepositoryResponse:
+    """Refresh the Codebase Index to the repo's current HEAD (no-op when current)."""
+    return _to_connect_response(
+        repo_index_service.resync_repository(db, project_id=project_id, user_id=user.id)
+    )
+
+
+@router.delete("/connection", status_code=status.HTTP_204_NO_CONTENT, response_class=Response)
+def disconnect_repository(
+    project_id: str,
+    db: Session = Depends(get_db),
+    user: CurrentUser = Depends(get_current_user),
+) -> Response:
+    """Unlink the repo: connections + snapshots + code vectors are purged. Docs stay."""
+    repo_index_service.disconnect_repository(db, project_id=project_id, user_id=user.id)
+    return Response(status_code=status.HTTP_204_NO_CONTENT)
+
+
+@router.get("/pulls", response_model=PullListResponse)
+def list_pulls(
+    project_id: str,
+    state: str = Query(default="open", max_length=10),
+    limit: int = Query(default=20, ge=1, le=50),
+    db: Session = Depends(get_db),
+    user: CurrentUser = Depends(get_current_user),
+) -> PullListResponse:
+    pulls = repo_index_service.list_repo_pulls(
+        db, project_id=project_id, user_id=user.id, state=state, limit=limit
+    )
+    return PullListResponse(pulls=[
+        GitHubPullItem(
+            number=p.number, title=p.title, headSha=p.head_sha,
+            baseBranch=p.base_branch, updatedAt=p.updated_at, url=p.url, author=p.author,
+        )
+        for p in pulls
+    ])
+
+
+@router.get("/commits", response_model=CommitListResponse)
+def list_commits(
+    project_id: str,
+    limit: int = Query(default=10, ge=1, le=30),
+    db: Session = Depends(get_db),
+    user: CurrentUser = Depends(get_current_user),
+) -> CommitListResponse:
+    commits = repo_index_service.list_repo_commits(
+        db, project_id=project_id, user_id=user.id, limit=limit
+    )
+    return CommitListResponse(commits=[
+        GitHubCommitItem(sha=c.sha, message=c.message, author=c.author, date=c.date, url=c.url)
+        for c in commits
+    ])
 
 
 @router.post("/sync", response_model=SyncRepositoryResponse)
@@ -60,12 +153,24 @@ def repository_status(
     db: Session = Depends(get_db),
     user: CurrentUser = Depends(get_current_user),
 ) -> RepositoryStatusResponse:
-    """Latest snapshot + index stats for the Repository panel."""
-    connection = db.execute(
-        select(RepositoryConnection).where(RepositoryConnection.project_id == project_id)
-    ).scalar_one_or_none()
-    if connection is None:
+    """Latest snapshot + Codebase Index stats for the Repository panel."""
+    connections = db.execute(
+        select(RepositoryConnection)
+        .where(RepositoryConnection.project_id == project_id)
+        .order_by(RepositoryConnection.created_at.desc())
+    ).scalars().all()
+    if not connections:
         return RepositoryStatusResponse()
+    # Prefer the linked GitHub repo over legacy manual-upload snapshots.
+    connection = next(
+        (c for c in connections if c.provider == RepositoryProvider.GITHUB),
+        connections[0],
+    )
+    repo_url = (
+        f"https://github.com/{connection.external_id}"
+        if connection.provider == RepositoryProvider.GITHUB
+        else None
+    )
     snapshot = db.execute(
         select(RepositorySnapshot)
         .where(RepositorySnapshot.repository_id == connection.id)
@@ -110,6 +215,7 @@ def repository_status(
     ).scalars().all()
     return RepositoryStatusResponse(
         connected=True,
+        repoUrl=repo_url,
         commitSha=snapshot.commit_sha,
         refName=snapshot.ref_name,
         indexedFilesCount=files_count,

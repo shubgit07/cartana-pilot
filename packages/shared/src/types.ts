@@ -151,6 +151,7 @@ export interface RepositoryFileStatus {
 
 export interface RepositoryStatus {
   connected: boolean;
+  repoUrl: string | null;
   commitSha: string | null;
   refName: string | null;
   indexedFilesCount: number;
@@ -158,6 +159,36 @@ export interface RepositoryStatus {
   embeddingDim: number;
   status: string;
   files: RepositoryFileStatus[];
+}
+
+export interface RepositoryConnectResult {
+  connectionId: string;
+  repoUrl: string;
+  displayName: string;
+  defaultBranch: string;
+  commitSha: string;
+  filesIndexed: number;
+  chunksCreated: number;
+  skipped: string[];
+  upToDate: boolean;
+}
+
+export interface GitHubPullItem {
+  number: number;
+  title: string;
+  headSha: string;
+  baseBranch: string;
+  updatedAt: string | null;
+  url: string;
+  author: string | null;
+}
+
+export interface GitHubCommitItem {
+  sha: string;
+  message: string;
+  author: string | null;
+  date: string | null;
+  url: string;
 }
 
 export interface RepositorySyncResult {

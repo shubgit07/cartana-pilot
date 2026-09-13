@@ -29,8 +29,53 @@ class SyncRepositoryResponse(BaseModel):
     embeddingDim: int
 
 
+class ConnectRepositoryInput(BaseModel):
+    model_config = ConfigDict(extra="ignore")
+
+    repoUrl: str = Field(min_length=1, max_length=1000)
+
+
+class ConnectRepositoryResponse(BaseModel):
+    connectionId: str
+    repoUrl: str
+    displayName: str
+    defaultBranch: str
+    commitSha: str
+    filesIndexed: int
+    chunksCreated: int
+    skipped: list[str] = Field(default_factory=list)
+    upToDate: bool = False
+
+
+class GitHubPullItem(BaseModel):
+    number: int
+    title: str
+    headSha: str
+    baseBranch: str
+    updatedAt: str | None = None
+    url: str
+    author: str | None = None
+
+
+class PullListResponse(BaseModel):
+    pulls: list[GitHubPullItem]
+
+
+class GitHubCommitItem(BaseModel):
+    sha: str
+    message: str
+    author: str | None = None
+    date: str | None = None
+    url: str
+
+
+class CommitListResponse(BaseModel):
+    commits: list[GitHubCommitItem]
+
+
 class RepositoryStatusResponse(BaseModel):
     connected: bool = False
+    repoUrl: str | None = None
     commitSha: str | None = None
     refName: str | None = None
     indexedFilesCount: int = 0

@@ -2,8 +2,9 @@
 
 Design notes (kept deliberately narrow):
 - Input is an explicit ``[{path, content}]`` payload supplied by the caller.
-  A future git-clone adapter can reuse this module by producing the same
-  payload; no clone/network logic lives here.
+  The GitHub adapter (``connect_repository``/``resync_repository`` below)
+  produces this payload from a public repo; no clone/network logic lives in
+  the chunk pipeline itself.
 - Noise filtering reuses ``IGNORED_RE`` from the diff parser so the index
   and the verifier agree on what is worth keeping.
 - Embeddings go through :func:`get_embedding_provider` (stub in dev/tests,
@@ -32,6 +33,7 @@ from sqlalchemy.orm import Session
 from app.api.services.project_service import get_owned_project
 from app.core.chunking import chunk_code_lines
 from app.core.diff_parser import IGNORED_RE
+from app.core.errors import ValidationError
 from app.db.models import (
     CodeChunk,
     IndexRun,
@@ -42,6 +44,7 @@ from app.db.models import (
     RunStatus,
     SnapshotKind,
 )
+from app.providers import github_provider
 from app.providers.embedding_provider import get_embedding_provider
 from app.providers.qdrant_provider import build_code_points, get_code_index
 
@@ -129,6 +132,187 @@ def _ensure_connection(db: Session, project_id: str, user_id: str) -> Repository
     return connection
 
 
+def _get_github_connection(db: Session, project_id: str) -> RepositoryConnection | None:
+    return db.execute(
+        select(RepositoryConnection)
+        .where(
+            RepositoryConnection.project_id == project_id,
+            RepositoryConnection.provider == RepositoryProvider.GITHUB,
+            RepositoryConnection.is_active == True,  # noqa: E712
+        )
+        .order_by(RepositoryConnection.created_at.desc())
+    ).scalars().first()
+
+
+def _purge_code_points(project_id: str) -> None:
+    """Best-effort Qdrant purge for one project. Never raises."""
+    try:
+        index = get_code_index()
+        if index is not None:
+            index.delete_by_project(project_id)
+    except Exception as exc:  # noqa: BLE001
+        logger.warning("Qdrant purge failed (project_id=%s): %s", project_id, exc)
+
+
+@dataclass
+class GitHubSyncResult:
+    connection_id: str
+    repo_url: str
+    display_name: str
+    default_branch: str
+    commit_sha: str
+    files_indexed: int
+    chunks_created: int
+    skipped: list[str] = field(default_factory=list)
+    up_to_date: bool = False
+
+
+def _latest_snapshot_sha(db: Session, connection_id: str) -> str | None:
+    snapshot = db.execute(
+        select(RepositorySnapshot)
+        .where(RepositorySnapshot.repository_id == connection_id)
+        .order_by(RepositorySnapshot.created_at.desc())
+    ).scalars().first()
+    return snapshot.commit_sha if snapshot is not None else None
+
+
+def connect_repository(
+    db: Session, *, project_id: str, user_id: str, repo_url: str
+) -> GitHubSyncResult:
+    """Link a public GitHub repo and build the project's Codebase Index.
+
+    Any previous connection (legacy manual uploads or another repo) is
+    replaced: its snapshots cascade away and its Qdrant points are purged,
+    so the index always reflects exactly one linked repo.
+    """
+    get_owned_project(db, user_id, project_id)
+    owner, repo = github_provider.parse_repo_url(repo_url)
+    meta = github_provider.ensure_public(owner, repo)
+
+    previous = db.execute(
+        select(RepositoryConnection).where(RepositoryConnection.project_id == project_id)
+    ).scalars().all()
+    for conn in previous:
+        db.delete(conn)
+    db.flush()
+    connection = RepositoryConnection(
+        project_id=project_id,
+        user_id=user_id,
+        provider=RepositoryProvider.GITHUB,
+        external_id=f"{meta.owner}/{meta.repo}",
+        clone_url=meta.clone_url,
+        default_branch=meta.default_branch,
+        display_name=meta.display_name,
+        is_active=True,
+    )
+    db.add(connection)
+    db.flush()
+    _purge_code_points(project_id)
+
+    fetched = github_provider.fetch_repo_files(meta.owner, meta.repo)
+    if not fetched.files:
+        raise ValidationError("No indexable code files found in that repository")
+    result = sync_repository_snapshot(
+        db,
+        project_id=project_id,
+        user_id=user_id,
+        files=[IndexFileInput(path=f.path, content=f.content) for f in fetched.files],
+        commit_sha=fetched.commit_sha,
+        ref_name=fetched.ref_name,
+        connection=connection,
+    )
+    return GitHubSyncResult(
+        connection_id=connection.id,
+        repo_url=f"https://github.com/{meta.owner}/{meta.repo}",
+        display_name=meta.display_name,
+        default_branch=meta.default_branch,
+        commit_sha=fetched.commit_sha,
+        files_indexed=result.files_indexed,
+        chunks_created=result.chunks_created,
+        skipped=[*fetched.skipped, *result.skipped],
+    )
+
+
+def resync_repository(db: Session, *, project_id: str, user_id: str) -> GitHubSyncResult:
+    """Refresh the Codebase Index to the repo's current HEAD (cheap no-op when current)."""
+    get_owned_project(db, user_id, project_id)
+    connection = _get_github_connection(db, project_id)
+    if connection is None:
+        raise ValidationError("Connect a GitHub repository first")
+    owner, repo = connection.external_id.split("/", 1)
+    head_sha = github_provider.get_branch_head_sha(owner, repo, connection.default_branch)
+    if _latest_snapshot_sha(db, connection.id) == head_sha:
+        return GitHubSyncResult(
+            connection_id=connection.id,
+            repo_url=f"https://github.com/{connection.external_id}",
+            display_name=connection.display_name,
+            default_branch=connection.default_branch,
+            commit_sha=head_sha,
+            files_indexed=0,
+            chunks_created=0,
+            up_to_date=True,
+        )
+    fetched = github_provider.fetch_repo_files(owner, repo, ref=connection.default_branch)
+    if not fetched.files:
+        raise ValidationError("No indexable code files found in that repository")
+    result = sync_repository_snapshot(
+        db,
+        project_id=project_id,
+        user_id=user_id,
+        files=[IndexFileInput(path=f.path, content=f.content) for f in fetched.files],
+        commit_sha=fetched.commit_sha,
+        ref_name=fetched.ref_name,
+        connection=connection,
+    )
+    return GitHubSyncResult(
+        connection_id=connection.id,
+        repo_url=f"https://github.com/{connection.external_id}",
+        display_name=connection.display_name,
+        default_branch=connection.default_branch,
+        commit_sha=fetched.commit_sha,
+        files_indexed=result.files_indexed,
+        chunks_created=result.chunks_created,
+        skipped=[*fetched.skipped, *result.skipped],
+    )
+
+
+def disconnect_repository(db: Session, *, project_id: str, user_id: str) -> bool:
+    """Unlink the repo: connections + snapshots cascade away, Qdrant purged. Docs stay."""
+    get_owned_project(db, user_id, project_id)
+    connections = db.execute(
+        select(RepositoryConnection).where(RepositoryConnection.project_id == project_id)
+    ).scalars().all()
+    if not connections:
+        return False
+    for conn in connections:
+        db.delete(conn)
+    db.flush()
+    _purge_code_points(project_id)
+    return True
+
+
+def list_repo_pulls(
+    db: Session, *, project_id: str, user_id: str, state: str = "open", limit: int = 20
+) -> list[github_provider.PullItem]:
+    get_owned_project(db, user_id, project_id)
+    connection = _get_github_connection(db, project_id)
+    if connection is None:
+        raise ValidationError("Connect a GitHub repository first")
+    owner, repo = connection.external_id.split("/", 1)
+    return github_provider.list_pulls(owner, repo, state=state, limit=limit)
+
+
+def list_repo_commits(
+    db: Session, *, project_id: str, user_id: str, limit: int = 10
+) -> list[github_provider.CommitItem]:
+    get_owned_project(db, user_id, project_id)
+    connection = _get_github_connection(db, project_id)
+    if connection is None:
+        raise ValidationError("Connect a GitHub repository first")
+    owner, repo = connection.external_id.split("/", 1)
+    return github_provider.list_commits(owner, repo, connection.default_branch, limit=limit)
+
+
 def get_or_create_snapshot(
     db: Session,
     *,
@@ -188,6 +372,7 @@ def sync_repository_snapshot(
     files: list[IndexFileInput],
     commit_sha: str | None = None,
     ref_name: str | None = None,
+    connection: RepositoryConnection | None = None,
 ) -> IndexSyncResult:
     """Index a set of code files into CodeChunk rows. Idempotent per content hash."""
     get_owned_project(db, user_id, project_id)
@@ -205,7 +390,7 @@ def sync_repository_snapshot(
         fingerprint = "\n".join(f"{p}:{_sha256_hex(c)}" for p, c in sorted(by_path.items()))
         resolved_sha = _sha256_hex(fingerprint)[:40]
 
-    connection = _ensure_connection(db, project_id, user_id)
+    connection = connection or _ensure_connection(db, project_id, user_id)
     snapshot = get_or_create_snapshot(
         db,
         project_id=project_id,

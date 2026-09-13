@@ -11,6 +11,10 @@ import os
 
 os.environ["LLM_PROVIDER"] = "stub"
 os.environ["EMBEDDING_PROVIDER"] = "stub"
+# Hermetic cache: never touch real Upstash from tests (24h audit TTL would
+# leak results across runs and make cache tests order-dependent).
+os.environ["UPSTASH_REDIS_REST_URL"] = ""
+os.environ["UPSTASH_REDIS_REST_TOKEN"] = ""
 
 from collections.abc import Generator
 from datetime import UTC, datetime

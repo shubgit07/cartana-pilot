@@ -8,8 +8,8 @@ Design notes:
 - Point id == ``CodeChunk.id`` (opaque string) so the DB row and the point
   are trivially joinable by id. Re-syncs upsert the same ids: idempotent.
 - Payload carries everything the verifier needs without a DB round-trip:
-  ``projectId`` (isolation filter), ``path``, ``startLine``, ``endLine``,
-  and ``content`` (the chunk text injected into the LLM prompt).
+  ``projectId`` (isolation filter), ``kind`` (``code`` today, ``doc`` later),
+  ``path``, ``startLine``, ``endLine``, and ``content``.
 - All Qdrant I/O is best-effort at the call site: indexing and verification
   must succeed (diff-only / keyword fallback) when Qdrant is unreachable.
 - ``get_code_index()`` returns None when Qdrant is not configured, so local
@@ -39,6 +39,7 @@ class CodePoint:
     start_line: int
     end_line: int
     content: str
+    kind: str = "code"
 
 
 @dataclass
@@ -104,6 +105,7 @@ class QdrantCodeIndex:
                         vector=p.vector,
                         payload={
                             "projectId": p.project_id,
+                            "kind": p.kind,
                             "path": p.path,
                             "startLine": p.start_line,
                             "endLine": p.end_line,
@@ -183,7 +185,7 @@ def get_code_index() -> QdrantCodeIndex | None:
 
 
 def build_code_points(
-    items: list[tuple[CodeChunk, str]], *, project_id: str
+    items: list[tuple[CodeChunk, str]], *, project_id: str, kind: str = "code"
 ) -> list[CodePoint]:
     """Map ``(CodeChunk row, file path)`` pairs to Qdrant points.
 
@@ -205,5 +207,6 @@ def build_code_points(
             start_line=chunk.start_line,
             end_line=chunk.end_line,
             content=chunk.content,
+            kind=kind,
         ))
     return points

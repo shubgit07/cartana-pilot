@@ -11,19 +11,25 @@ import {
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { SubmitButton } from "@/components/common/SubmitButton";
+import { ConfirmDialog } from "@/components/common/ConfirmDialog";
 import {
   Code2,
   FileCode2,
-  FileUp,
   FolderGit2,
+  GitBranch,
   GitCommit,
+  Github,
   Layers,
   Loader2,
   RefreshCw,
   Search,
+  Unplug,
 } from "lucide-react";
 import { useToast } from "@/components/ui/toast";
 import { useRepository } from "@/hooks/api/repository";
+import { messageOf } from "@/hooks/api";
 import { formatCount } from "@/lib/format";
 
 type Props = {
@@ -32,34 +38,80 @@ type Props = {
 
 export function RepositoryPanel({ projectId }: Props) {
   const { toast } = useToast();
-  const { status, loading, syncing, error, reload, syncFiles } = useRepository(projectId);
+  const {
+    status,
+    loading,
+    syncing,
+    error,
+    connectRepo,
+    resync,
+    disconnectRepo,
+  } = useRepository(projectId);
   const [searchQuery, setSearchQuery] = React.useState("");
-  const fileInputRef = React.useRef<HTMLInputElement>(null);
+  const [repoUrl, setRepoUrl] = React.useState("");
+  const [confirmDisconnect, setConfirmDisconnect] = React.useState(false);
 
-  const files = React.useMemo(
-    () => status?.files ?? [],
-    [status]
-  );
+  const files = React.useMemo(() => status?.files ?? [], [status]);
   const filteredFiles = files.filter((f) =>
     f.path.toLowerCase().includes(searchQuery.toLowerCase())
   );
+  const connected = status?.connected === true;
 
-  async function handlePickedFiles(e: React.ChangeEvent<HTMLInputElement>) {
-    const picked = e.target.files;
-    e.target.value = "";
-    if (!picked || picked.length === 0) return;
+  React.useEffect(() => {
+    setRepoUrl("");
+    setSearchQuery("");
+    setConfirmDisconnect(false);
+  }, [projectId]);
+
+  async function handleConnect(e: React.FormEvent) {
+    e.preventDefault();
+    const url = repoUrl.trim();
+    if (!url) return;
     try {
-      const result = await syncFiles(picked);
-      if (result) {
-        toast({
-          title: "Repository Index Synced",
-          description: `${formatCount(result.filesIndexed, "file")} indexed into ${formatCount(result.chunksCreated, "chunk")}.`,
-        });
-      }
-    } catch {
+      const result = await connectRepo(url);
+      setRepoUrl("");
       toast({
-        title: "Sync Failed",
-        description: "Could not index the selected files.",
+        title: "Repository connected",
+        description: `${result.displayName}: ${formatCount(result.filesIndexed, "file")} synced into ${formatCount(result.chunksCreated, "chunk")}.`,
+      });
+    } catch (err: unknown) {
+      toast({
+        title: "Connection failed",
+        description: messageOf(err) ?? "Use a public github.com URL like https://github.com/owner/repo",
+        variant: "destructive",
+      });
+    }
+  }
+
+  async function handleResync() {
+    try {
+      const result = await resync();
+      toast(
+        result.upToDate
+          ? { title: "Already up to date", description: `Codebase Index matches ${result.commitSha.slice(0, 7)}.` }
+          : {
+              title: "Codebase Index synced",
+              description: `${formatCount(result.filesIndexed, "file")} synced into ${formatCount(result.chunksCreated, "chunk")}.`,
+            }
+      );
+    } catch (err: unknown) {
+      toast({
+        title: "Sync failed",
+        description: messageOf(err) ?? "Try again",
+        variant: "destructive",
+      });
+    }
+  }
+
+  async function handleDisconnect() {
+    try {
+      await disconnectRepo();
+      setConfirmDisconnect(false);
+      toast({ title: "Repository disconnected", description: "Codebase Index cleared." });
+    } catch (err: unknown) {
+      toast({
+        title: "Disconnect failed",
+        description: messageOf(err) ?? "Try again",
         variant: "destructive",
       });
     }
@@ -67,7 +119,7 @@ export function RepositoryPanel({ projectId }: Props) {
 
   return (
     <div className="space-y-6">
-      {/* Repository Index Card */}
+      {/* Connect / Connected Card */}
       <Card className="border-border/80 bg-surface">
         <CardHeader className="gap-3 border-b border-border/70 pb-4">
           <div className="flex flex-wrap items-start justify-between gap-3">
@@ -75,36 +127,32 @@ export function RepositoryPanel({ projectId }: Props) {
               <span className="eyebrow">Version Control</span>
               <CardTitle className="flex items-center gap-2 text-lg">
                 <FolderGit2 className="h-4 w-4 text-muted-foreground" aria-hidden="true" />
-                Repository Code Index
+                Codebase Index
               </CardTitle>
               <CardDescription>
-                Workspace snapshot chunked and embedded for requirement verification.
+                Link a public GitHub repository. We sync its code (never assets or
+                dependencies) into a searchable index for requirement verification.
               </CardDescription>
             </div>
 
-            <div className="flex items-center gap-2">
-              <input
-                ref={fileInputRef}
-                type="file"
-                multiple
-                className="hidden"
-                aria-label="Select source files to index"
-                onChange={(e) => void handlePickedFiles(e)}
-              />
-              <Button
-                size="sm"
-                variant="outline"
-                onClick={() => fileInputRef.current?.click()}
-                disabled={syncing}
-              >
-                <FileUp className="h-3.5 w-3.5" aria-hidden="true" />
-                <span className="ml-1.5">{syncing ? "Indexing…" : "Select Files & Index"}</span>
-              </Button>
-              <Button size="sm" variant="outline" onClick={() => void reload()} disabled={loading}>
-                <RefreshCw className={`h-3.5 w-3.5 ${loading ? "animate-spin" : ""}`} aria-hidden="true" />
-                <span className="ml-1.5">Refresh</span>
-              </Button>
-            </div>
+            {connected && (
+              <div className="flex items-center gap-2">
+                <Button size="sm" variant="outline" onClick={() => void handleResync()} disabled={syncing}>
+                  <RefreshCw className={`h-3.5 w-3.5 ${syncing ? "animate-spin" : ""}`} aria-hidden="true" />
+                  <span className="ml-1.5">{syncing ? "Syncing…" : "Sync latest"}</span>
+                </Button>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={() => setConfirmDisconnect(true)}
+                  disabled={syncing}
+                  className="hover:border-danger/40 hover:bg-danger-soft hover:text-danger-soft-foreground"
+                >
+                  <Unplug className="h-3.5 w-3.5" aria-hidden="true" />
+                  <span className="ml-1.5">Disconnect</span>
+                </Button>
+              </div>
+            )}
           </div>
         </CardHeader>
 
@@ -116,26 +164,63 @@ export function RepositoryPanel({ projectId }: Props) {
             </div>
           )}
 
-          {!loading && error && (
-            <div className="max-w-xl space-y-2 py-2 text-xs" role="alert">
-              <p className="text-foreground">{error}</p>
-              <Button size="sm" variant="outline" onClick={() => void reload()}>
-                Retry
-              </Button>
-            </div>
+          {!loading && error && !connected && (
+            <p role="alert" className="max-w-xl py-2 text-xs text-danger-soft-foreground">
+              {error}
+            </p>
           )}
 
-          {!loading && !error && (!status || !status.connected) && (
-            <div className="max-w-xl space-y-2 py-2 text-xs text-muted-foreground">
-              <p>No code index yet. Select source files to build the first snapshot.</p>
-            </div>
+          {!loading && !connected && (
+            <form onSubmit={handleConnect} className="max-w-xl space-y-3">
+              <div className="space-y-1.5">
+                <Label htmlFor="github-repo-url">Public GitHub repository URL</Label>
+                <div className="flex flex-col gap-2 sm:flex-row">
+                  <div className="relative flex-1">
+                    <Github className="absolute left-2.5 top-2.5 h-3.5 w-3.5 text-muted-foreground" aria-hidden="true" />
+                    <Input
+                      id="github-repo-url"
+                      name="githubRepoUrl"
+                      autoComplete="off"
+                      spellCheck={false}
+                      placeholder="https://github.com/owner/repo…"
+                      value={repoUrl}
+                      onChange={(e) => setRepoUrl(e.target.value)}
+                      className="pl-8 font-mono text-xs"
+                      disabled={syncing}
+                    />
+                  </div>
+                  <SubmitButton type="submit" loading={syncing} loadingLabel="Connecting…" disabled={!repoUrl.trim()}>
+                    Connect & sync
+                  </SubmitButton>
+                </div>
+                <p className="text-2xs leading-relaxed text-muted-foreground">
+                  Public repositories only during the free MVP. Private repos arrive later.
+                </p>
+              </div>
+            </form>
           )}
 
-          {!loading && !error && status?.connected && (
+          {!loading && connected && status && (
             <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
               <div className="rounded-lg border border-border/60 bg-surface-sunken p-3">
                 <span className="text-2xs font-medium text-muted-foreground uppercase tracking-wider">
-                  Active Commit Snapshot
+                  Linked Repository
+                </span>
+                <div className="mt-1 flex items-center gap-1.5 font-mono text-xs font-medium text-foreground">
+                  <Github className="h-3.5 w-3.5 shrink-0 text-muted-foreground" aria-hidden="true" />
+                  <span className="truncate" title={status.repoUrl ?? undefined}>
+                    {status.repoUrl?.replace("https://github.com/", "") ?? "—"}
+                  </span>
+                </div>
+                <div className="mt-1 flex items-center gap-1.5 text-2xs text-muted-foreground">
+                  <GitBranch className="h-3 w-3" aria-hidden="true" />
+                  <span className="truncate">{status.refName ?? "—"}</span>
+                </div>
+              </div>
+
+              <div className="rounded-lg border border-border/60 bg-surface-sunken p-3">
+                <span className="text-2xs font-medium text-muted-foreground uppercase tracking-wider">
+                  Index Synced At
                 </span>
                 <div className="mt-1 flex items-center gap-1.5 font-mono text-xs font-medium text-foreground">
                   <GitCommit className="h-3.5 w-3.5 text-success" aria-hidden="true" />
@@ -148,7 +233,7 @@ export function RepositoryPanel({ projectId }: Props) {
 
               <div className="rounded-lg border border-border/60 bg-surface-sunken p-3">
                 <span className="text-2xs font-medium text-muted-foreground uppercase tracking-wider">
-                  Indexed Files
+                  Synced Files
                 </span>
                 <div className="mt-1 text-xs font-medium text-foreground tabular">
                   {formatCount(status.indexedFilesCount, "file")}
@@ -157,7 +242,7 @@ export function RepositoryPanel({ projectId }: Props) {
 
               <div className="rounded-lg border border-border/60 bg-surface-sunken p-3">
                 <span className="text-2xs font-medium text-muted-foreground uppercase tracking-wider">
-                  Indexed Chunks
+                  Code Chunks
                 </span>
                 <div className="mt-1 flex items-center gap-1.5 text-xs font-medium text-foreground">
                   <Layers className="h-3.5 w-3.5 text-primary" aria-hidden="true" />
@@ -165,40 +250,31 @@ export function RepositoryPanel({ projectId }: Props) {
                   <span className="text-2xs text-muted-foreground">({status.embeddingDim}-dim)</span>
                 </div>
               </div>
-
-              <div className="rounded-lg border border-border/60 bg-surface-sunken p-3">
-                <span className="text-2xs font-medium text-muted-foreground uppercase tracking-wider">
-                  Reference
-                </span>
-                <div className="mt-1 font-mono text-xs font-medium text-foreground truncate">
-                  {status.refName ?? "workspace snapshot"}
-                </div>
-              </div>
             </div>
           )}
         </CardContent>
       </Card>
 
-      {/* Code Chunk & File Index Section */}
+      {/* Synced Files Section */}
       <Card>
         <CardHeader className="gap-3 border-b border-border/70">
           <div className="flex flex-wrap items-center justify-between gap-3">
             <div className="min-w-0 space-y-1">
-              <span className="eyebrow">Semantic Code Index</span>
+              <span className="eyebrow">Codebase Index</span>
               <CardTitle className="flex items-center gap-2 text-base">
                 <FileCode2 className="h-4 w-4 text-muted-foreground" aria-hidden="true" />
-                Indexed Repository Files ({files.length})
+                Synced Files ({files.length})
               </CardTitle>
               <CardDescription>
-                Source files chunked and embedded with vector representations for requirement verification.
+                Repository code chunked and embedded for requirement verification.
               </CardDescription>
             </div>
 
             <div className="relative w-full max-w-xs">
               <Search className="absolute left-2.5 top-2.5 h-3.5 w-3.5 text-muted-foreground" aria-hidden="true" />
               <Input
-                placeholder="Search indexed files…"
-                aria-label="Search indexed files"
+                placeholder="Search synced files…"
+                aria-label="Search synced files"
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
                 className="h-8 pl-8 text-xs font-mono"
@@ -238,12 +314,26 @@ export function RepositoryPanel({ projectId }: Props) {
 
             {filteredFiles.length === 0 && (
               <div className="py-6 text-center text-xs text-muted-foreground">
-                No matching indexed files found.
+                {connected
+                  ? "No matching synced files found."
+                  : "Connect a GitHub repository above to build the Codebase Index."}
               </div>
             )}
           </div>
         </CardContent>
       </Card>
+
+      <ConfirmDialog
+        open={confirmDisconnect}
+        onOpenChange={setConfirmDisconnect}
+        title="Disconnect repository?"
+        description="This clears the Codebase Index (synced files and code vectors). Your documents and requirements stay."
+        confirmLabel="Disconnect"
+        cancelLabel="Keep connected"
+        destructive
+        loading={syncing}
+        onConfirm={() => void handleDisconnect()}
+      />
     </div>
   );
 }
