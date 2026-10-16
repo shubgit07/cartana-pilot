@@ -106,7 +106,7 @@ export function ProjectList() {
         <div className="flex min-h-[43px] items-center justify-between gap-2">
           <h1 className="px-2.5 text-[13px] font-medium text-foreground">Projects</h1>
           <Button asChild size="sm" className="my-1.5">
-            <Link href="/?create=new">
+            <Link href="/projects?create=new">
               <Plus className="h-3.5 w-3.5" aria-hidden="true" />
               New project
             </Link>
@@ -175,7 +175,7 @@ export function ProjectList() {
           </p>
           <div className="mt-6 flex flex-wrap items-center justify-center gap-2">
             <Button asChild>
-              <Link href="/?create=new">
+              <Link href="/projects?create=new">
                 Create new project
                 <span className="ml-1 flex items-center gap-1" aria-hidden="true">
                   <Kbd>N</Kbd>

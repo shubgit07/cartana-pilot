@@ -121,10 +121,6 @@ export function Sidebar() {
           <Layers className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />
           <span className="truncate">Projects</span>
         </Link>
-        <Link href="/" className={rowClass(false)}>
-          <FolderGit2 className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />
-          <span className="truncate">Landing Page ↗</span>
-        </Link>
       </div>
 
       {/* Open project */}
