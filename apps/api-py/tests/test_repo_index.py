@@ -1,7 +1,7 @@
 """Tests for the repository indexer (Phase 1) and code retrieval helper."""
 from __future__ import annotations
 
-from sqlalchemy import func, select
+from sqlalchemy import delete, func, select
 
 from app.api.services.repo_index_service import (
     IndexFileInput,
@@ -11,7 +11,7 @@ from app.api.services.repo_index_service import (
     sync_repository_snapshot,
 )
 from app.core.chunking import chunk_code_lines as chunk_code_lines_core
-from app.db.models import CodeChunk, IndexRun, RepositoryFile
+from app.db.models import CodeChunk, CodeSymbol, IndexRun, RepositoryFile
 from tests.conftest import seed_project
 
 
@@ -105,3 +105,64 @@ def test_retrieve_code_context_empty_without_index(db_session):
     project = seed_project(db_session)
     assert retrieve_code_context(db_session, project_id=project.id, query_text="refunds") == []
     assert retrieve_code_context(db_session, project_id=project.id, query_text="  ") == []
+
+
+def test_sync_persists_code_symbols(db_session):
+    project = seed_project(db_session)
+    sync_repository_snapshot(
+        db_session,
+        project_id=project.id,
+        user_id=project.user_id,
+        files=[
+            IndexFileInput(
+                path="app/auth.py",
+                content="def login(user):\n    return True\n",
+            ),
+        ],
+    )
+    symbols = db_session.execute(select(CodeSymbol)).scalars().all()
+    assert [s.name for s in symbols] == ["login"]
+    assert symbols[0].start_line == 1
+
+
+def test_retrieve_prefers_exact_symbol_match(db_session):
+    project = seed_project(db_session)
+    sync_repository_snapshot(
+        db_session,
+        project_id=project.id,
+        user_id=project.user_id,
+        files=[
+            IndexFileInput(
+                path="middleware/auth.py",
+                content="def require_auth(request):\n    return request.user\n",
+            ),
+            IndexFileInput(
+                path="services/refund_service.py",
+                content="def issue_refund(order):\n    return charge(order)\n",
+            ),
+        ],
+    )
+    items = retrieve_code_context(
+        db_session, project_id=project.id, query_text="issue_refund"
+    )
+    assert items
+    assert items[0].path == "services/refund_service.py"
+    assert items[0].score > 1.0  # symbol hits outrank vector/keyword scores
+
+
+def test_resync_backfills_missing_symbols(db_session):
+    project = seed_project(db_session)
+    files = [IndexFileInput(path="app/auth.py", content="def login():\n    return True\n")]
+    sync_repository_snapshot(
+        db_session, project_id=project.id, user_id=project.user_id, files=files
+    )
+    assert db_session.execute(select(func.count()).select_from(CodeSymbol)).scalar_one() == 1
+
+    # Simulate a v1-indexed file: wipe symbols, re-sync identical content.
+    db_session.execute(delete(CodeSymbol))
+    db_session.commit()
+    again = sync_repository_snapshot(
+        db_session, project_id=project.id, user_id=project.user_id, files=files
+    )
+    assert again.files_indexed == 0  # chunks untouched
+    assert db_session.execute(select(func.count()).select_from(CodeSymbol)).scalar_one() == 1

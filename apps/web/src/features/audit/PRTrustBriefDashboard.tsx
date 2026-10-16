@@ -16,10 +16,8 @@ import {
   Info,
   Loader2,
   ShieldAlert,
-  ShieldCheck,
   Sparkles,
   UserCheck,
-  Zap,
 } from "lucide-react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -39,15 +37,13 @@ import { useVerifyPR } from "@/hooks/api/audit";
 import { RepoVerifyPicker } from "./RepoVerifyPicker";
 import { downloadFile, formatPRBriefAsGithubMarkdown } from "@/lib/formatPrBrief";
 import type {
-  PRRiskAlert,
   PRTrustBrief,
-  RequirementVerificationVerdict,
   VerificationVerdictStatus,
 } from "@cartana/shared";
 
 type Props = {
   projectId: string;
-  externalBrief?: import("@cartana/shared").PRTrustBrief | null;
+  externalBrief?: PRTrustBrief | null;
 };
 
 const VERDICT_STYLES: Record<
@@ -76,29 +72,58 @@ const VERDICT_STYLES: Record<
   },
 };
 
-const TRUST_STYLES = {
-  high: {
-    border: "border-success/40",
-    bg: "bg-success-soft/40",
-    text: "text-success-soft-foreground",
-    badge: "bg-success text-success-foreground",
-    glow: "shadow-[0_0_24px_-4px_rgba(34,197,94,0.3)]",
-  },
-  medium: {
-    border: "border-warning/40",
-    bg: "bg-warning-soft/40",
-    text: "text-warning-soft-foreground",
-    badge: "bg-warning text-warning-foreground",
-    glow: "shadow-[0_0_24px_-4px_rgba(245,158,11,0.3)]",
-  },
-  low: {
-    border: "border-danger/40",
-    bg: "bg-danger-soft/40",
-    text: "text-danger-soft-foreground",
-    badge: "bg-danger text-danger-foreground",
-    glow: "shadow-[0_0_24px_-4px_rgba(239,68,68,0.3)]",
-  },
-};
+/** OpenQodex-style verdict sentence: the whole report in one line, capped at 40ch. */
+function buildVerdictSentence(
+  score: number,
+  trust: "high" | "medium" | "low",
+  missing: number,
+  unverified: number
+): string {
+  const parts: string[] = [];
+  if (missing > 0) parts.push(`${missing} requirement${missing === 1 ? "" : "s"} missing`);
+  if (unverified > 0) {
+    parts.push(`${unverified} evidence claim${unverified === 1 ? "" : "s"} unverified`);
+  }
+  const head =
+    parts.length > 0 ? `${trust === "high" ? "Passed" : "Flagged"}: ${parts.join(", ")}` : "Passed: no gaps";
+  return `${head}, coverage ${score}%`;
+}
+
+/**
+ * Renders an evidence snippet as real diff context: added lines tinted green,
+ * removed lines red, on a mono table with tabular line numbers.
+ */
+function DiffExcerpt({ snippet }: { snippet: string }) {
+  const lines = snippet.split("\n");
+  return (
+    <div className="overflow-hidden rounded-md border border-border/70">
+      <table className="w-full border-collapse font-mono text-xs">
+        <tbody>
+          {lines.map((line, idx) => {
+            const sign = line.startsWith("+") ? "+" : line.startsWith("-") ? "-" : " ";
+            const tone =
+              sign === "+"
+                ? "bg-diff-add-bg text-diff-add-fg"
+                : sign === "-"
+                  ? "bg-diff-del-bg text-diff-del-fg"
+                  : "text-foreground";
+            return (
+              <tr key={idx} className={tone}>
+                <td className="w-10 select-none border-r border-border/50 px-2 text-right text-[10px] text-muted-foreground/60 tabular">
+                  {idx + 1}
+                </td>
+                <td className="w-5 select-none px-1 text-center text-muted-foreground">{sign}</td>
+                <td className="whitespace-pre px-2 py-0.5 leading-5">
+                  {line.replace(/^[+-]/, "")}
+                </td>
+              </tr>
+            );
+          })}
+        </tbody>
+      </table>
+    </div>
+  );
+}
 
 export function PRTrustBriefDashboard({ projectId, externalBrief = null }: Props) {
   const { brief, fromCache, verifying, error, verify, loadBrief } = useVerifyPR(projectId);
@@ -152,8 +177,8 @@ export function PRTrustBriefDashboard({ projectId, externalBrief = null }: Props
       await navigator.clipboard.writeText(md);
       setCopied(true);
       toast({
-        title: "Copied to clipboard!",
-        description: "Formatted GitHub comment is ready to paste into PR review box.",
+        title: "Copied to clipboard",
+        description: "The GitHub comment is ready to paste into the PR review box.",
       });
       setTimeout(() => setCopied(false), 3000);
     } catch {
@@ -208,16 +233,16 @@ export function PRTrustBriefDashboard({ projectId, externalBrief = null }: Props
         title: "Audit complete",
         description: "PR Trust Brief successfully generated.",
       });
-    } catch (err: unknown) {
+    } catch {
       toast({
         title: "Verification failed",
-        description: error || "Failed to analyze PR diff.",
+        description: error || "Failed to analyze the pull request diff.",
         variant: "destructive",
       });
     }
   };
 
-  // ---- Human-in-the-Loop Effective Metrics Calculation ----
+  // ---- Human-in-the-loop effective verdicts (overrides win over AI) ----
   const effectiveVerdicts = React.useMemo(() => {
     if (!brief) return [];
     return brief.verdicts.map((v) => {
@@ -226,7 +251,7 @@ export function PRTrustBriefDashboard({ projectId, externalBrief = null }: Props
         return {
           ...v,
           status: override.status,
-          rationale: `${v.rationale} (User Ground-Truth: ${override.rationale})`,
+          rationale: `${v.rationale} (User ground-truth: ${override.rationale})`,
           isUserOverridden: true,
         };
       }
@@ -234,17 +259,45 @@ export function PRTrustBriefDashboard({ projectId, externalBrief = null }: Props
     });
   }, [brief, userOverrides]);
 
+  // ---- Deterministic metrics (mirrors the backend evidence gate) ----
   const effectiveCovered = effectiveVerdicts.filter((v) => v.status === "covered").length;
   const effectivePartial = effectiveVerdicts.filter((v) => v.status === "partial").length;
   const effectiveMissing = effectiveVerdicts.filter((v) => v.status === "missing").length;
+
+  // Evidence gate surface: claims the verifier could not find in the diff.
+  const effectiveUnverified = effectiveVerdicts.filter(
+    (v) => v.evidenceVerified === false
+  ).length;
 
   const totalReqs = brief ? brief.totalRequirements : 0;
   const effectiveScore = totalReqs > 0
     ? Math.round(((effectiveCovered + 0.5 * effectivePartial) / totalReqs) * 100)
     : 0;
 
+  const hasCriticalAlert = brief
+    ? brief.riskAlerts.some((a) => a.severity === "critical")
+    : false;
   const effectiveTrustLevel: "high" | "medium" | "low" =
-    effectiveScore >= 80 ? "high" : effectiveScore >= 50 ? "medium" : "low";
+    effectiveScore < 50 || hasCriticalAlert
+      ? "low"
+      : effectiveScore >= 80 && effectiveMissing === 0 && effectiveUnverified === 0
+        ? "high"
+        : "medium";
+
+  const verdictSentence = brief
+    ? buildVerdictSentence(effectiveScore, effectiveTrustLevel, effectiveMissing, effectiveUnverified)
+    : "";
+
+  // Requirement index for the sticky side nav.
+  const reqIndex = React.useMemo(
+    () =>
+      effectiveVerdicts.map((v) => ({
+        reqId: v.reqId,
+        title: v.title,
+        status: v.status,
+      })),
+    [effectiveVerdicts]
+  );
 
   return (
     <div className="space-y-8">
@@ -391,149 +444,225 @@ export function PRTrustBriefDashboard({ projectId, externalBrief = null }: Props
         </CardContent>
       </Card>
 
-      {/* Audit Results Dashboard */}
+      {/* Incomplete report: shown when verification fails, e.g. the upstream
+          patch fetch returns a 502. One honest card, no dead state. */}
+      {error && !brief && (
+        <section className="rounded-md border border-warning/40 bg-warning-soft/20 px-4 py-4">
+          <p className="eyebrow text-warning">Report incomplete</p>
+          <p className="mt-2 max-w-[70ch] text-sm leading-relaxed text-foreground">{error}</p>
+          <p className="mt-1 max-w-[70ch] text-xs leading-relaxed text-muted-foreground">
+            Nothing was verified. Check the diff or pull request URL and run the audit again.
+          </p>
+        </section>
+      )}
+
+      {/* Report: masthead + sticky verdict bar + body */}
       {brief && (
-        <div className="space-y-8 animate-fade-in">
-          {/* Executive Hero Trust Card */}
-          <div
-            className={cn(
-              "rounded-xl border p-6 transition-all",
-              TRUST_STYLES[effectiveTrustLevel].border,
-              TRUST_STYLES[effectiveTrustLevel].bg,
-              TRUST_STYLES[effectiveTrustLevel].glow
-            )}
-          >
-            <div className="flex flex-wrap items-start justify-between gap-6">
-              <div className="space-y-3 max-w-2xl">
-                <div className="flex flex-wrap items-center gap-2.5">
-                  <Badge className={cn("px-3 py-1 text-xs font-bold uppercase tracking-wider", TRUST_STYLES[effectiveTrustLevel].badge)}>
-                    <ShieldCheck className="mr-1.5 h-3.5 w-3.5 inline" />
-                    {effectiveTrustLevel} Trust
-                  </Badge>
-
-                  {Object.keys(userOverrides).length > 0 && (
-                    <Badge variant="outline" className="border-primary/40 bg-background/80 text-primary text-xs gap-1 font-mono">
-                      <UserCheck className="h-3 w-3 text-primary" />
-                      {Object.keys(userOverrides).length} Human Override(s)
-                    </Badge>
-                  )}
-
-                  {fromCache && (
-                    <Badge variant="outline" className="border-primary/40 bg-background/80 text-primary text-xs gap-1 font-mono">
-                      <Zap className="h-3 w-3 text-amber-500 fill-amber-500" />
-                      ⚡ 0ms Cached Run (0 Tokens)
-                    </Badge>
-                  )}
-                </div>
-
-                <p className="text-sm font-medium leading-relaxed text-foreground">{brief.summary}</p>
-              </div>
-
-              {/* Big Score Radial/Metric */}
-              <div className="flex flex-col items-center justify-center rounded-xl border border-border/80 bg-background/90 px-6 py-4 shadow-sm text-center">
-                <span className="text-3xl font-black tracking-tight font-serif text-foreground">
-                  {effectiveScore}%
-                </span>
-                <span className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
-                  Code Coverage
-                </span>
-              </div>
+        <div className="space-y-6 animate-fade-in">
+          {/* Masthead: wordmark + report kind, then the verdict sentence at 40ch */}
+          <header className="border-b border-border pb-5">
+            <div className="flex flex-wrap items-baseline justify-between gap-3">
+              <span className="font-mono text-xs text-muted-foreground">Cartana trust report</span>
+              <span
+                className={cn(
+                  "font-mono text-xs uppercase tracking-[0.04em]",
+                  effectiveTrustLevel === "high"
+                    ? "text-success"
+                    : effectiveTrustLevel === "medium"
+                      ? "text-warning"
+                      : "text-danger"
+                )}
+              >
+                report complete
+              </span>
             </div>
 
-            {/* Quick Metrics Bar & Export Actions */}
-            <div className="mt-6 space-y-4 pt-6 border-t border-border/40">
-              <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-                <div className="rounded-lg bg-background/60 p-3 border border-border/40">
-                  <span className="text-xs text-muted-foreground">Total Requirements</span>
-                  <p className="text-lg font-bold tabular-nums text-foreground">{totalReqs}</p>
-                </div>
-                <div className="rounded-lg bg-background/60 p-3 border border-border/40">
-                  <span className="text-xs text-success">Covered in Diff</span>
-                  <p className="text-lg font-bold tabular-nums text-success">{effectiveCovered}</p>
-                </div>
-                <div className="rounded-lg bg-background/60 p-3 border border-border/40">
-                  <span className="text-xs text-warning">Partially Covered</span>
-                  <p className="text-lg font-bold tabular-nums text-warning">{effectivePartial}</p>
-                </div>
-                <div className="rounded-lg bg-background/60 p-3 border border-border/40">
-                  <span className="text-xs text-danger">Missing / Absent</span>
-                  <p className="text-lg font-bold tabular-nums text-danger">{effectiveMissing}</p>
-                </div>
+            <h1
+              className={cn(
+                "mt-3 max-w-[40ch] text-2xl font-semibold leading-tight tracking-tight",
+                effectiveTrustLevel === "high"
+                  ? "text-foreground"
+                  : effectiveTrustLevel === "medium"
+                    ? "text-warning"
+                    : "text-danger"
+              )}
+            >
+              {verdictSentence}
+            </h1>
+
+            {/* Meta grid: change id, size, threshold, generated */}
+            <dl className="mt-5 grid grid-cols-2 gap-x-8 gap-y-3 sm:grid-cols-4">
+              <div>
+                <dt className="eyebrow">Change</dt>
+                <dd className="mt-1 font-mono text-xs text-foreground tabular">
+                  {brief.id.slice(-12)}
+                </dd>
               </div>
-
-              {/* Action Buttons: Copy as GitHub PR Comment & Download */}
-              <div className="flex flex-wrap items-center justify-end gap-2.5 pt-2">
-                <Button
-                  type="button"
-                  variant="outline"
-                  size="sm"
-                  onClick={handleCopyGithubComment}
-                  className="gap-2 bg-background/80 hover:bg-background text-xs font-semibold shadow-xs"
-                >
-                  {copied ? (
-                    <>
-                      <CheckCircle2 className="h-3.5 w-3.5 text-success" />
-                      Copied GitHub Comment!
-                    </>
-                  ) : (
-                    <>
-                      <Copy className="h-3.5 w-3.5 text-primary" />
-                      Copy as GitHub PR Comment
-                    </>
-                  )}
-                </Button>
-
-                <Button
-                  type="button"
-                  variant="ghost"
-                  size="sm"
-                  onClick={handleDownloadMarkdown}
-                  className="gap-1.5 text-xs text-muted-foreground hover:text-foreground"
-                >
-                  <Download className="h-3.5 w-3.5" />
-                  Export .md
-                </Button>
-
-                <Button
-                  type="button"
-                  variant="ghost"
-                  size="sm"
-                  onClick={handleDownloadJSON}
-                  className="gap-1.5 text-xs text-muted-foreground hover:text-foreground"
-                >
-                  <FileJson className="h-3.5 w-3.5" />
-                  Export .json
-                </Button>
+              <div>
+                <dt className="eyebrow">Size</dt>
+                <dd className="mt-1 font-mono text-xs text-foreground tabular">
+                  {brief.changedFilesSummary.length} files
+                </dd>
               </div>
+              <div>
+                <dt className="eyebrow">Block threshold</dt>
+                <dd className="mt-1 font-mono text-xs text-foreground">low trust</dd>
+              </div>
+              <div>
+                <dt className="eyebrow">Generated</dt>
+                <dd className="mt-1 font-mono text-xs text-foreground tabular">
+                  {new Date(brief.createdAt).toLocaleString()}
+                </dd>
+              </div>
+            </dl>
+          </header>
+
+          {/* Sticky verdict bar: counts + jump links */}
+          <div className="sticky top-0 z-10 -mx-1 flex flex-wrap items-center justify-between gap-3 border-b border-border bg-background/95 px-1 py-2.5 backdrop-blur">
+            <div className="flex flex-wrap items-center gap-x-3 gap-y-1 font-mono text-xs text-muted-foreground tabular">
+              <span
+                className={cn(
+                  "font-semibold uppercase tracking-[0.04em]",
+                  effectiveTrustLevel === "high"
+                    ? "text-success"
+                    : effectiveTrustLevel === "medium"
+                      ? "text-warning"
+                      : "text-danger"
+                )}
+              >
+                {effectiveTrustLevel}
+              </span>
+              <span>
+                {effectiveCovered} covered · {effectivePartial} partial · {effectiveMissing} missing
+              </span>
+              {effectiveUnverified > 0 && (
+                <span className="text-danger">
+                  {effectiveUnverified} unverified evidence
+                </span>
+              )}
+              {Object.keys(userOverrides).length > 0 && (
+                <span className="text-primary">
+                  {Object.keys(userOverrides).length} override
+                  {Object.keys(userOverrides).length === 1 ? "" : "s"}
+                </span>
+              )}
+              {fromCache && <span className="text-primary">cached, 0 tokens</span>}
             </div>
+
+            <nav className="flex items-center gap-4 text-2xs font-semibold uppercase tracking-[0.04em] text-muted-foreground">
+              <a href="#report-summary" className="hover:text-foreground">Summary</a>
+              <a href="#report-requirements" className="hover:text-foreground">Requirements</a>
+              <a href="#report-alerts" className="hover:text-foreground">Alerts</a>
+              <a href="#report-files" className="hover:text-foreground">Files</a>
+            </nav>
           </div>
 
-          {/* Risk Alerts Section */}
+          {/* Summary prose, capped at 70ch */}
+          <section id="report-summary" className="scroll-mt-header">
+            <p className="max-w-[70ch] text-sm leading-relaxed text-foreground">
+              {brief.summary}
+            </p>
+          </section>
+
+          {/* Coverage strip: the evidence gate made visible */}
+          <section className="rounded-md border border-border/70 bg-surface px-4 py-3">
+            <dl className="grid grid-cols-2 gap-x-6 gap-y-2 sm:grid-cols-4">
+              <div className="flex items-baseline gap-2">
+                <dt className="eyebrow">Requirements</dt>
+                <dd className="font-mono text-xs text-foreground tabular">{totalReqs}</dd>
+              </div>
+              <div className="flex items-baseline gap-2">
+                <dt className="eyebrow">Coverage</dt>
+                <dd className="font-mono text-xs text-foreground tabular">{effectiveScore}%</dd>
+              </div>
+              <div className="flex items-baseline gap-2">
+                <dt className="eyebrow">Evidence checked</dt>
+                <dd className="font-mono text-xs text-foreground tabular">
+                  {brief.evidenceVerifiedCount ?? 0}
+                </dd>
+              </div>
+              <div className="flex items-baseline gap-2">
+                <dt className="eyebrow">Not found in diff</dt>
+                <dd
+                  className={cn(
+                    "font-mono text-xs tabular",
+                    (brief.evidenceUnverifiedCount ?? 0) > 0 ? "text-danger" : "text-foreground"
+                  )}
+                >
+                  {brief.evidenceUnverifiedCount ?? 0}
+                </dd>
+              </div>
+            </dl>
+          </section>
+
+          {/* Export actions */}
+          <div className="flex flex-wrap items-center justify-end gap-2 border-t border-border pt-4">
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={handleCopyGithubComment}
+              className="gap-2 text-xs"
+            >
+              {copied ? (
+                <>
+                  <CheckCircle2 className="h-3.5 w-3.5 text-success" />
+                  Copied comment
+                </>
+              ) : (
+                <>
+                  <Copy className="h-3.5 w-3.5 text-primary" />
+                  Copy as GitHub PR comment
+                </>
+              )}
+            </Button>
+
+            <Button
+              type="button"
+              variant="ghost"
+              size="sm"
+              onClick={handleDownloadMarkdown}
+              className="gap-1.5 text-xs text-muted-foreground hover:text-foreground"
+            >
+              <Download className="h-3.5 w-3.5" />
+              Export .md
+            </Button>
+
+            <Button
+              type="button"
+              variant="ghost"
+              size="sm"
+              onClick={handleDownloadJSON}
+              className="gap-1.5 text-xs text-muted-foreground hover:text-foreground"
+            >
+              <FileJson className="h-3.5 w-3.5" />
+              Export .json
+            </Button>
+          </div>
+
+          {/* Risk alerts */}
           {brief.riskAlerts.length > 0 && (
-            <Card className="border-danger/30 bg-danger-soft/20">
-              <CardHeader className="pb-3">
-                <div className="flex items-center gap-2 text-danger">
-                  <ShieldAlert className="h-5 w-5" />
-                  <CardTitle className="text-base font-semibold">Security & Architecture Risk Alerts</CardTitle>
-                </div>
-              </CardHeader>
-              <CardContent className="space-y-3">
+            <section id="report-alerts" className="scroll-mt-header">
+              <div className="flex items-center gap-2 border-b border-border pb-2">
+                <ShieldAlert className="h-4 w-4 text-danger" aria-hidden="true" />
+                <h2 className="eyebrow text-foreground">Risk alerts ({brief.riskAlerts.length})</h2>
+              </div>
+              <ul className="divide-y divide-border/60">
                 {brief.riskAlerts.map((alert, idx) => (
-                  <div
-                    key={idx}
-                    className="flex flex-col sm:flex-row sm:items-start justify-between gap-3 rounded-lg border border-danger/20 bg-background/80 p-3.5 shadow-2xs"
-                  >
+                  <li key={idx} className="flex flex-col gap-2 py-3 sm:flex-row sm:items-start sm:justify-between">
                     <div className="space-y-1">
                       <div className="flex items-center gap-2">
                         <Badge
                           variant={alert.severity === "critical" ? "danger" : "secondary"}
-                          className="text-[10px] uppercase font-bold px-2 py-0.5"
+                          className="px-1.5 py-0.5"
                         >
                           {alert.severity}
                         </Badge>
-                        <span className="text-sm font-semibold text-foreground">{alert.title}</span>
+                        <span className="text-sm font-medium text-foreground">{alert.title}</span>
                       </div>
-                      <p className="text-xs text-muted-foreground leading-relaxed">{alert.description}</p>
+                      <p className="max-w-[70ch] text-xs leading-relaxed text-muted-foreground">
+                        {alert.description}
+                      </p>
                     </div>
 
                     {alert.affectedFiles && alert.affectedFiles.length > 0 && (
@@ -541,100 +670,160 @@ export function PRTrustBriefDashboard({ projectId, externalBrief = null }: Props
                         {alert.affectedFiles.map((file, fIdx) => (
                           <span
                             key={fIdx}
-                            className="rounded bg-muted px-2 py-0.5 font-mono text-[10px] text-muted-foreground border border-border/60"
+                            className="rounded-sm border border-border/60 bg-muted px-1.5 py-0.5 font-mono text-[10px] text-muted-foreground"
                           >
                             {file}
                           </span>
                         ))}
                       </div>
                     )}
-                  </div>
+                  </li>
                 ))}
-              </CardContent>
-            </Card>
+              </ul>
+            </section>
           )}
 
-          {/* Requirement Verification Matrix */}
-          <Card>
-            <CardHeader>
-              <div className="flex items-center justify-between">
-                <div className="space-y-1">
-                  <CardTitle className="text-base font-semibold">Requirement Verification Matrix</CardTitle>
-                  <CardDescription>
-                    Strict mapping of each requirement to code diff hunks with interactive Human-in-the-Loop developer ground-truth overrides.
-                  </CardDescription>
-                </div>
-                <Badge variant="outline" className="font-mono text-xs">
-                  {effectiveVerdicts.length} Requirements
-                </Badge>
-              </div>
-            </CardHeader>
+          {/* Requirements: sticky index + per-requirement evidence */}
+          <section id="report-requirements" className="scroll-mt-header">
+            <div className="flex items-center justify-between border-b border-border pb-2">
+              <h2 className="eyebrow text-foreground">
+                Requirements ({effectiveVerdicts.length})
+              </h2>
+              <span className="font-mono text-2xs text-muted-foreground tabular">
+                {effectiveCovered}/{totalReqs} covered
+              </span>
+            </div>
 
-            <CardContent className="p-0 divide-y divide-border/60">
-              {effectiveVerdicts.map((v) => {
+            <div className="grid gap-6 pt-4 lg:grid-cols-[16rem_minmax(0,1fr)]">
+              {/* Sticky side index */}
+              <nav className="hidden lg:block">
+                <ul className="sticky top-16 space-y-1.5 border-l border-border pl-3">
+                  {reqIndex.map((r) => (
+                    <li key={r.reqId}>
+                      <a
+                        href={`#req-${r.reqId}`}
+                        className="flex items-baseline gap-2 text-xs text-muted-foreground hover:text-foreground"
+                      >
+                        <span className="font-mono text-foreground">{r.reqId}</span>
+                        <span className="truncate">{r.title}</span>
+                      </a>
+                    </li>
+                  ))}
+                </ul>
+              </nav>
+
+              {/* Verdict list */}
+              <ol className="space-y-0 divide-y divide-border/60">
+                {effectiveVerdicts.map((v, idx) => {
                 const config = VERDICT_STYLES[v.status] || VERDICT_STYLES.unclear;
                 const Icon = config.icon;
                 const isExpanded = expandedReqs[v.reqId];
 
                 return (
-                  <div key={v.reqId} className="p-4 transition-colors hover:bg-muted/20">
+                  <li
+                    key={v.reqId}
+                    id={`req-${v.reqId}`}
+                    className="scroll-mt-header py-4 transition-colors hover:bg-muted/10"
+                  >
                     <div
                       onClick={() => toggleReq(v.reqId)}
-                      className="flex cursor-pointer items-start justify-between gap-4"
+                      className="flex cursor-pointer items-start justify-between gap-4 px-1"
                     >
                       <div className="flex items-start gap-3 min-w-0">
-                        <button type="button" className="mt-0.5 text-muted-foreground">
-                          {isExpanded ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
+                        <button
+                          type="button"
+                          className="mt-0.5 text-muted-foreground"
+                          aria-expanded={isExpanded}
+                          aria-label={`Toggle evidence for ${v.reqId}`}
+                        >
+                          {isExpanded ? (
+                            <ChevronDown className="h-4 w-4" />
+                          ) : (
+                            <ChevronRight className="h-4 w-4" />
+                          )}
                         </button>
 
-                        <div className="space-y-1 min-w-0">
-                          <div className="flex items-center gap-2">
-                            <span className="font-mono text-xs font-bold text-primary">{v.reqId}</span>
-                            <span className="text-sm font-medium text-foreground truncate">{v.title}</span>
+                        <div className="space-y-1.5 min-w-0">
+                          <div className="flex flex-wrap items-center gap-2">
+                            <span className="font-mono text-xs text-muted-foreground tabular">
+                              {idx + 1}.
+                            </span>
+                            <span className="font-mono text-xs font-semibold text-primary">
+                              {v.reqId}
+                            </span>
+                            <span className="text-sm font-medium text-foreground">{v.title}</span>
                             {v.isUserOverridden && (
-                              <Badge variant="outline" className="text-[10px] font-bold border-primary/50 text-primary px-1.5 py-0.2">
+                              <Badge variant="outline" className="border-primary/50 px-1.5 py-0.5 text-primary">
                                 <UserCheck className="mr-1 h-3 w-3 inline" />
-                                User Verified
+                                user verified
                               </Badge>
                             )}
                           </div>
-                          <p className="text-xs text-muted-foreground line-clamp-2">{v.rationale}</p>
-                        </div>
-                      </div>
 
-                      <div className="flex items-center gap-2.5 shrink-0" onClick={(e) => e.stopPropagation()}>
-                        <Badge className={cn("text-xs font-semibold gap-1 px-2.5 py-0.5", config.badge)}>
-                          <Icon className="h-3.5 w-3.5" />
-                          {config.label}
-                        </Badge>
+                          {/* Verdict / evidence / confidence rows, report style */}
+                          <dl className="grid gap-x-6 gap-y-1 sm:grid-cols-[6.5rem_minmax(0,1fr)]">
+                            <dt className="eyebrow">Verdict</dt>
+                            <dd>
+                              <Badge className={cn("gap-1 px-1.5 py-0.5", config.badge)}>
+                                <Icon className="h-3 w-3" />
+                                {config.label}
+                              </Badge>
+                            </dd>
+
+                            {v.evidenceFile && (
+                              <>
+                                <dt className="eyebrow">Evidence</dt>
+                                <dd className="flex flex-wrap items-center gap-2 font-mono text-xs text-foreground">
+                                  <FileCode2 className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
+                                  <span className="break-all">{v.evidenceFile}</span>
+                                  {v.evidenceVerified === true && (
+                                    <Badge variant="success" className="px-1.5 py-0.5">
+                                      found in diff
+                                    </Badge>
+                                  )}
+                                  {v.evidenceVerified === false && (
+                                    <Badge variant="danger" className="px-1.5 py-0.5">
+                                      not found in diff
+                                    </Badge>
+                                  )}
+                                </dd>
+                              </>
+                            )}
+
+                            <dt className="eyebrow">Why</dt>
+                            <dd className="max-w-[70ch] text-xs leading-relaxed text-muted-foreground">
+                              {v.rationale}
+                            </dd>
+
+                            <dt className="eyebrow">Confidence</dt>
+                            <dd className="font-mono text-xs text-muted-foreground">{v.confidence}</dd>
+                          </dl>
+                        </div>
                       </div>
                     </div>
 
-                    {/* Collapsible Evidence Snippet Drawer + Developer Override Controls */}
+                    {/* Evidence diff excerpt + override controls */}
                     {isExpanded && (
-                      <div className="mt-4 ml-7 rounded-lg border border-border/70 bg-muted/40 p-3.5 space-y-3 animate-fade-in">
-                        {v.evidenceFile && (
-                          <div className="flex items-center gap-2 text-xs font-mono text-foreground">
-                            <FileCode2 className="h-3.5 w-3.5 text-primary shrink-0" />
-                            <span className="font-semibold">{v.evidenceFile}</span>
-                          </div>
-                        )}
-
+                      <div className="mt-3 ml-7 space-y-3 pl-1 animate-fade-in">
                         {v.evidenceSnippet ? (
-                          <div className="relative rounded-md bg-neutral-950 p-3 font-mono text-xs text-emerald-400 overflow-x-auto border border-neutral-800">
-                            <pre className="whitespace-pre">{v.evidenceSnippet}</pre>
-                          </div>
+                          <DiffExcerpt snippet={v.evidenceSnippet} />
                         ) : (
                           <p className="text-xs italic text-muted-foreground">
-                            No matching code evidence snippet found in diff.
+                            No code evidence claimed for this verdict.
                           </p>
                         )}
 
-                        {/* Developer Human-in-the-Loop Override Controls */}
-                        <div className="flex flex-wrap items-center justify-between gap-3 pt-2 border-t border-border/40 text-xs">
+                        {v.evidenceVerified === false && (
+                          <p className="max-w-[70ch] rounded-md border border-danger/30 bg-danger-soft/20 px-3 py-2 text-xs leading-relaxed text-danger-soft-foreground">
+                            This evidence could not be found in the supplied diff, so it does not
+                            count toward coverage. Confirm or correct the verdict below.
+                          </p>
+                        )}
+
+                        <div className="flex flex-wrap items-center justify-between gap-3 border-t border-border/60 pt-3 text-xs">
                           <div className="flex items-center gap-2">
                             <UserCheck className="h-3.5 w-3.5 text-primary" />
-                            <span className="font-medium text-foreground">Developer Ground-Truth Override:</span>
+                            <span className="font-medium text-foreground">Developer disposition</span>
                           </div>
 
                           <Select
@@ -642,24 +831,27 @@ export function PRTrustBriefDashboard({ projectId, externalBrief = null }: Props
                             onValueChange={(val) => handleOverrideStatus(v.reqId, val)}
                           >
                             <SelectTrigger className="h-8 w-44 text-xs bg-background">
-                              <SelectValue placeholder="Override status…" />
+                              <SelectValue placeholder="Set verdict…" />
                             </SelectTrigger>
                             <SelectContent>
-                              <SelectItem value="covered">Mark as Covered</SelectItem>
-                              <SelectItem value="partial">Mark as Partial</SelectItem>
-                              <SelectItem value="missing">Mark as Missing</SelectItem>
-                              <SelectItem value="unclear">Mark as Unclear</SelectItem>
-                              {v.isUserOverridden && <SelectItem value="__RESET__">↺ Reset to AI Verdict</SelectItem>}
+                              <SelectItem value="covered">Covered</SelectItem>
+                              <SelectItem value="partial">Partial</SelectItem>
+                              <SelectItem value="missing">Missing</SelectItem>
+                              <SelectItem value="unclear">Unclear</SelectItem>
+                              {v.isUserOverridden && (
+                                <SelectItem value="__RESET__">Reset to AI verdict</SelectItem>
+                              )}
                             </SelectContent>
                           </Select>
                         </div>
                       </div>
                     )}
-                  </div>
+                  </li>
                 );
               })}
-            </CardContent>
-          </Card>
+              </ol>
+            </div>
+          </section>
 
           {/* Changed Files Summary */}
           {brief.changedFilesSummary.length > 0 && (

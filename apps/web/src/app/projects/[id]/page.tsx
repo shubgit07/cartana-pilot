@@ -4,7 +4,6 @@ import { ProjectDetailPage } from "@/features/project-detail";
 import { RequirementsPanel } from "@/features/requirements";
 import { RepositoryPanel } from "@/features/repository";
 import { CompliancePanel } from "@/features/compliance";
-import { ChatComingSoon } from "@/features/chat";
 import { ReadId } from "./read-id";
 
 export default function Page() {
@@ -14,13 +13,12 @@ export default function Page() {
         requirements: <RequirementsById />,
         repository: <RepositoryById />,
         compliance: <ComplianceById />,
-        chat: <ChatById />,
       }}
     />
   );
 }
 
-// Small adapters — the panel components bind the projectId resolved by
+// Small adapters: the panel components bind the projectId resolved by
 // ProjectDetailPage's useParams() when they mount.
 
 function RequirementsById() {
@@ -45,8 +43,4 @@ function ComplianceById() {
       {(id) => <CompliancePanel projectId={id} />}
     </ReadId>
   );
-}
-
-function ChatById() {
-  return <ChatComingSoon />;
 }

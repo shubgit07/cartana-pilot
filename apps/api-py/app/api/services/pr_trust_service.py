@@ -263,6 +263,7 @@ def persist_verification_run(
                 verdict=_STATUS_TO_VERDICT.get(verdict.status, VerificationVerdict.INCONCLUSIVE),
                 confidence=_CONFIDENCE_TO_SCORE.get(verdict.confidence, 0.6),
                 rationale=verdict.rationale,
+                evidence_verified=verdict.evidenceVerified,
             )
             db.add(record)
             db.flush()

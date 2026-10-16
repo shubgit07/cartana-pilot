@@ -22,6 +22,10 @@ export function AppShell({ children }: { children: React.ReactNode }) {
     setMobileOpen(false);
   }, [pathname]);
 
+  if (pathname === "/") {
+    return <div className="min-h-dvh w-full">{children}</div>;
+  }
+
   return (
     <div className="flex h-dvh gap-2 bg-background p-2 text-foreground">
       <SkipLink href="#main-content">Skip to main content</SkipLink>

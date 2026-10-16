@@ -18,6 +18,5 @@ def test_health_check() -> None:
         "gemini_configured",
         "groq_configured",
         "cerebras_configured",
-        "fireworks_configured",
     ):
         assert isinstance(creds[key], bool)

@@ -7,12 +7,11 @@ describe("NAVIGATION_TABS", () => {
       "requirements",
       "repository",
       "compliance",
-      "chat",
     ]);
   });
 
   it("is a readonly tuple (as const)", () => {
-    expect(NAVIGATION_TABS.length).toBe(4);
+    expect(NAVIGATION_TABS.length).toBe(3);
     expect(NAVIGATION_TABS[0]).toBe("requirements");
   });
 });

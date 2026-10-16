@@ -27,6 +27,5 @@ def health_check() -> dict[str, object]:
             "gemini_configured": bool(settings.gemini_api_key),
             "groq_configured": bool(settings.groq_api_key),
             "cerebras_configured": bool(settings.cerebras_api_key),
-            "fireworks_configured": bool(settings.fireworks_api_key),
         },
     }

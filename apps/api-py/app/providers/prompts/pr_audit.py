@@ -34,10 +34,13 @@ def build_pr_verification_prompt(
         "5. Test files alone are NOT evidence of a feature being implemented. If a requirement is only referenced or "
         "exercised by tests (test_*.py) and no implementation of that feature appears in the diff, verdict is 'missing' "
         "even if the tests would pass once the implementation exists.\n"
-        "7. Repository context (when provided) is baseline code OUTSIDE the diff. If it already "
+        "6. Repository context (when provided) is baseline code OUTSIDE the diff. If it already "
         "implements a requirement (e.g. an auth guard in middleware/auth.py), the verdict is "
         "'covered' — cite the repository file as evidence and say so in 'rationale'. Only mark "
         "'missing' when neither the diff nor the repository context implements it.\n"
+        "7. Quote evidence VERBATIM from the Git Diff Hunks (or the Repository Context). Never paraphrase "
+        "or reconstruct lines from memory: every evidenceSnippet is checked against the real diff, and a "
+        "snippet that cannot be found there is rejected and the verdict is downgraded.\n"
         "8. Output MUST be valid JSON only matching the schema:\n"
         "{\n"
         '  "verdicts": [\n'
@@ -85,10 +88,12 @@ def build_pr_risk_summary_prompt(
     verdicts: list[dict[str, Any]],
     changed_files_summary: list[dict[str, Any]],
 ) -> tuple[str, str]:
-    """Stage 3 Prompt: Risk, Security & Trust Level Analysis (LLM Call 2).
+    """Stage 3 Prompt: Risk & Trust Analysis (LLM Call 2).
 
     Consumes compact verdicts (~300 tokens) + file list to synthesize
-    security gaps, test coverage flags, scope creep, and compute Trust Score.
+    the executive summary and risk alerts. The coverage score and trust
+    level are computed deterministically from the verdicts, never asked
+    of the model.
     """
     system_prompt = (
         "You are a Principal Software Engineer and Security Lead evaluating the safety "
@@ -98,15 +103,11 @@ def build_pr_risk_summary_prompt(
         "1. Security & Backend Gaps: Did the PR implement frontend UI but omit backend auth, validation, or rate limits?\n"
         "2. Test Coverage: Were test files modified/added to verify the new features?\n"
         "3. Scope Creep: Were unrelated files, dependencies, or configs altered outside the requirements?\n"
-        "4. Calculate Trust Level ('high', 'medium', 'low') and Coverage Score (0-100%):\n"
-        "   - 'high': >=80% requirements covered, tests present, zero critical security gaps.\n"
-        "   - 'medium': 50-79% covered, or minor omissions.\n"
-        "   - 'low': <50% covered, or critical missing backend/security checks.\n\n"
+        "The coverage score and trust level are computed deterministically from the verdicts. "
+        "Do not calculate or output them.\n\n"
         "Output MUST be valid JSON only matching the schema:\n"
         "{\n"
-        '  "coverageScore": 80,\n'
-        '  "trustLevel": "high" | "medium" | "low",\n'
-        '  "summary": "2-3 sentence executive brief of PR readiness and trust score.",\n'
+        '  "summary": "2-3 sentence executive brief of PR readiness.",\n'
         '  "riskAlerts": [\n'
         '    {\n'
         '      "kind": "missing_backend_check" | "no_tests" | "scope_creep" | "security_gap" | "error_handling",\n'

@@ -124,7 +124,7 @@ def test_run_pr_verification_workflow_e2e(mock_cache_audit, mock_get_cached):
             status="covered",
             confidence="high",
             evidenceFile="app/routes/auth.py",
-            evidenceSnippet="+ @router.post('/login')",
+            evidenceSnippet='@router.post("/login")',
             rationale="Auth route implemented.",
         )
     ]
@@ -139,7 +139,7 @@ def test_run_pr_verification_workflow_e2e(mock_cache_audit, mock_get_cached):
     ]
 
     with patch("app.core.workflow.pr_verification_graph._run_stage2_verification", return_value=fake_verdicts), \
-         patch("app.core.workflow.pr_verification_graph._run_stage3_risk_analysis", return_value=(90, "high", "High trust summary", fake_alerts)):
+         patch("app.core.workflow.pr_verification_graph._run_stage3_risk_analysis", return_value=("High trust summary", fake_alerts)):
 
         brief, is_cached = run_pr_verification_workflow(
             project_id="proj-test",
@@ -152,10 +152,13 @@ def test_run_pr_verification_workflow_e2e(mock_cache_audit, mock_get_cached):
 
         assert is_cached is False
         assert brief is not None
-        assert brief.coverageScore == 90
+        assert brief.coverageScore == 100
         assert brief.trustLevel == "high"
+        assert brief.evidenceVerifiedCount == 1
+        assert brief.evidenceUnverifiedCount == 0
         assert len(brief.verdicts) == 1
         assert brief.verdicts[0].status == "covered"
+        assert brief.verdicts[0].evidenceVerified is True
         assert len(brief.riskAlerts) == 1
         assert mock_cache_audit.called
 

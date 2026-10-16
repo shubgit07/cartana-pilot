@@ -24,7 +24,7 @@ def _fake_stages():
             status="covered",
             confidence="high",
             evidenceFile="app/routes/auth.py",
-            evidenceSnippet="+ @router.post('/login')",
+            evidenceSnippet='@router.post("/login")',
             rationale="Auth route implemented.",
         )
     ]
@@ -44,7 +44,7 @@ def _fake_stages():
         ),
         patch(
             "app.core.workflow.pr_verification_graph._run_stage3_risk_analysis",
-            return_value=(90, "high", "High trust summary", alerts),
+            return_value=("High trust summary", alerts),
         ),
     )
 
@@ -72,6 +72,7 @@ def test_workflow_persists_run_verdicts_and_evidence(db_session):
     verdicts = db_session.execute(select(RequirementVerdict)).scalars().all()
     assert len(verdicts) == 1
     assert verdicts[0].verdict.value == "satisfied"
+    assert verdicts[0].evidence_verified is True
 
     evidence = db_session.execute(select(EvidenceReference)).scalars().all()
     assert len(evidence) == 1
@@ -82,14 +83,14 @@ def test_workflow_persists_run_verdicts_and_evidence(db_session):
         db_session, project_id=project.id, user_id=project.user_id
     )
     assert len(summaries) == 1
-    assert summaries[0]["coverageScore"] == 90
+    assert summaries[0]["coverageScore"] == 100
     assert summaries[0]["coveredCount"] == 1
 
     fetched = pr_trust_service.get_verification_brief(
         db_session, project_id=project.id, user_id=project.user_id, run_id=runs[0].id
     )
     assert fetched is not None
-    assert fetched.coverageScore == 90
+    assert fetched.coverageScore == 100
 
 
 def test_rerun_reuses_requirement_revision(db_session):

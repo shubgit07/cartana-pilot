@@ -209,12 +209,12 @@ export function RepositoryPanel({ projectId }: Props) {
                 <div className="mt-1 flex items-center gap-1.5 font-mono text-xs font-medium text-foreground">
                   <Github className="h-3.5 w-3.5 shrink-0 text-muted-foreground" aria-hidden="true" />
                   <span className="truncate" title={status.repoUrl ?? undefined}>
-                    {status.repoUrl?.replace("https://github.com/", "") ?? "—"}
+                    {status.repoUrl?.replace("https://github.com/", "") ?? "-"}
                   </span>
                 </div>
                 <div className="mt-1 flex items-center gap-1.5 text-2xs text-muted-foreground">
                   <GitBranch className="h-3 w-3" aria-hidden="true" />
-                  <span className="truncate">{status.refName ?? "—"}</span>
+                  <span className="truncate">{status.refName ?? "-"}</span>
                 </div>
               </div>
 
@@ -224,7 +224,7 @@ export function RepositoryPanel({ projectId }: Props) {
                 </span>
                 <div className="mt-1 flex items-center gap-1.5 font-mono text-xs font-medium text-foreground">
                   <GitCommit className="h-3.5 w-3.5 text-success" aria-hidden="true" />
-                  <span className="truncate">{status.commitSha?.slice(0, 10) ?? "—"}</span>
+                  <span className="truncate">{status.commitSha?.slice(0, 10) ?? "-"}</span>
                   <Badge variant="success" className="text-2xs py-0 px-1">
                     {status.status}
                   </Badge>
@@ -303,7 +303,7 @@ export function RepositoryPanel({ projectId }: Props) {
                 </div>
 
                 <div className="flex items-center gap-4 text-2xs text-muted-foreground shrink-0 tabular">
-                  <span>{file.lineCount ?? "—"} lines</span>
+                  <span>{file.lineCount ?? "-"} lines</span>
                   <span>{(file.sizeBytes / 1024).toFixed(1)} KB</span>
                   <span className="rounded bg-surface-sunken px-1.5 py-0.5 border border-border/50 text-foreground font-mono">
                     {file.chunksCount} chunks

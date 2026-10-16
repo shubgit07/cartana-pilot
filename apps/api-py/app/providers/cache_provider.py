@@ -129,18 +129,27 @@ def check_rate_limit(user_id: str, max_rpm: int = 20) -> bool:
     return True
 
 
-def get_cached_audit(spec_hash: str, diff_hash: str) -> dict[str, Any] | None:
-    """Fetch previously computed PR audit result by hashes to save LLM tokens."""
-    cache_key = f"audit:cache:{spec_hash}:{diff_hash}"
-    cached = redis_get(cache_key)
+def _audit_cache_key(project_id: str, spec_hash: str, diff_hash: str) -> str:
+    """Project-scoped cache key: identical spec+diff in two projects never collide."""
+    return f"audit:cache:{project_id}:{spec_hash}:{diff_hash}"
+
+
+def get_cached_audit(
+    project_id: str, spec_hash: str, diff_hash: str
+) -> dict[str, Any] | None:
+    """Fetch previously computed PR audit result by project and hashes."""
+    cached = redis_get(_audit_cache_key(project_id, spec_hash, diff_hash))
     if isinstance(cached, dict):
         return cached
     return None
 
 
 def cache_audit(
-    spec_hash: str, diff_hash: str, result: dict[str, Any], ttl_seconds: int = 86400
+    project_id: str,
+    spec_hash: str,
+    diff_hash: str,
+    result: dict[str, Any],
+    ttl_seconds: int = 86400,
 ) -> None:
     """Cache PR audit result for 24h to avoid redundant LLM invocations."""
-    cache_key = f"audit:cache:{spec_hash}:{diff_hash}"
-    redis_set(cache_key, result, ttl_seconds=ttl_seconds)
+    redis_set(_audit_cache_key(project_id, spec_hash, diff_hash), result, ttl_seconds=ttl_seconds)

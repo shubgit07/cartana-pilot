@@ -124,7 +124,7 @@ export function UploadFileCard({ projectId, busy, onBusyChange, onUploaded }: Pr
           <>
             <SourceFileInput onFile={handle} disabled={busy} loading={busy} />
             <p className="mt-3 text-2xs leading-relaxed text-muted-foreground">
-              Files are chunked and embedded automatically — no extra step needed.
+              Files are chunked and embedded automatically. No extra step needed.
               Requirements are extracted automatically and listed below.
             </p>
           </>
@@ -183,7 +183,7 @@ export function UploadFileCard({ projectId, busy, onBusyChange, onUploaded }: Pr
             <p aria-live="polite" className="text-xs leading-relaxed text-muted-foreground">
               {phase === "working" && ENGAGEMENT_COPY[copyIndex]}
               {phase === "done" &&
-                "Requirements extracted — they're ready in the Requirements tab."}
+                "Requirements extracted. They're ready in the Requirements tab."}
               {phase === "failed" && (live?.errorMessage ?? "Something went wrong. Try again.")}
             </p>
           </div>
