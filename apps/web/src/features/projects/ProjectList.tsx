@@ -42,7 +42,7 @@ export function ProjectList() {
   const [selected, setSelected] = React.useState<ReadonlySet<string>>(new Set());
 
   const closeComposer = React.useCallback(() => {
-    router.replace("/", { scroll: false });
+    router.replace(window.location.pathname, { scroll: false });
   }, [router]);
 
   // Linear shortcut: N then P opens the composer (ignored while typing).
@@ -60,7 +60,7 @@ export function ProjectList() {
       } else if (e.key.toLowerCase() === "p" && now - armedAt < 800) {
         armedAt = 0;
         e.preventDefault();
-        router.push("/?create=new", { scroll: false });
+        router.push(`${window.location.pathname}?create=new`, { scroll: false });
       }
     };
     window.addEventListener("keydown", onKey);
@@ -170,7 +170,7 @@ export function ProjectList() {
           />
           <h2 className="mt-6 text-[15px] font-semibold text-foreground">Projects</h2>
           <p className="mt-2 max-w-md text-[13px] leading-relaxed text-muted-foreground">
-            Projects hold your spec documents. Upload sources, extract requirements and tasks,
+            Projects hold your spec documents. Upload sources, extract requirements,
             then verify every pull request against them before you merge.
           </p>
           <div className="mt-6 flex flex-wrap items-center justify-center gap-2">

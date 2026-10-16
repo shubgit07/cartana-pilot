@@ -1,7 +1,7 @@
 // Public surface for common (cross-feature) components.
 //
 // These components are NOT domain-specific — they apply anywhere in the
-// app. For domain-specific (project/chat/task) components, see
+// app. For domain-specific components, see
 // `src/features/<feature>/index.ts`.
 
 export { ConfirmDialog } from "./ConfirmDialog";

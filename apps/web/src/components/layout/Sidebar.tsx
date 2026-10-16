@@ -8,13 +8,11 @@ import {
   FolderGit2,
   Layers,
   ListChecks,
-  MessageSquare,
   Plus,
   ShieldCheck,
   type LucideIcon,
 } from "lucide-react";
 import { CartanaLogo } from "./CartanaLogo";
-import { ThemeToggle } from "./ThemeToggle";
 import { useProject } from "@/hooks/api";
 import type { NavigationTab } from "@/lib/constants";
 import { cn } from "@/lib/cn";
@@ -23,7 +21,6 @@ const PROJECT_TABS: ReadonlyArray<{ value: NavigationTab; label: string; icon: L
   { value: "requirements", label: "Requirements", icon: ListChecks },
   { value: "repository", label: "Repository", icon: FolderGit2 },
   { value: "compliance", label: "Compliance", icon: ShieldCheck },
-  { value: "chat", label: "Chat", icon: MessageSquare },
 ];
 
 function rowClass(active: boolean) {
@@ -74,14 +71,14 @@ export function Sidebar() {
   const pathname = usePathname();
   const params = useParams<{ id?: string }>();
   const projectId = params?.id;
-  const onHome = pathname === "/";
+  const onProjects = pathname === "/projects";
 
   return (
     <nav aria-label="Primary" className="flex h-full flex-col gap-1 overflow-y-auto px-1 py-2">
       {/* Workspace row */}
       <div className="flex items-center gap-1 px-1">
         <Link
-          href="/"
+          href="/projects"
           className={cn(
             "flex h-8 min-w-0 flex-1 items-center gap-1.5 rounded-lg px-1.5 transition-colors hover:bg-surface-hover",
             "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/70 focus-visible:ring-offset-2 focus-visible:ring-offset-background"
@@ -96,7 +93,7 @@ export function Sidebar() {
           <ChevronDown className="h-3 w-3 shrink-0 text-muted-foreground" aria-hidden="true" />
         </Link>
         <Link
-          href="/?create=new"
+          href="/projects?create=new"
           aria-label="Create new project"
           title="Create new project"
           className={cn(
@@ -111,7 +108,7 @@ export function Sidebar() {
 
       {/* Main nav */}
       <div className="space-y-1 pt-2">
-        <Link href="/" aria-current={onHome ? "page" : undefined} className={rowClass(onHome)}>
+        <Link href="/projects" aria-current={onProjects ? "page" : undefined} className={rowClass(onProjects)}>
           <Layers className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />
           <span className="truncate">Projects</span>
         </Link>
@@ -120,9 +117,13 @@ export function Sidebar() {
       {/* Workspace section */}
       <div className="space-y-1 pt-3">
         <SectionLabel>Workspace</SectionLabel>
-        <Link href="/" aria-current={onHome ? "page" : undefined} className={rowClass(onHome)}>
+        <Link href="/projects" aria-current={onProjects ? "page" : undefined} className={rowClass(onProjects)}>
           <Layers className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />
           <span className="truncate">Projects</span>
+        </Link>
+        <Link href="/" className={rowClass(false)}>
+          <FolderGit2 className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />
+          <span className="truncate">Landing Page ↗</span>
         </Link>
       </div>
 
@@ -144,7 +145,6 @@ export function Sidebar() {
       )}
 
       <div className="mt-auto flex items-center gap-2 px-1 pt-3">
-        <ThemeToggle className="h-7 w-7 rounded-full [&_svg]:size-3.5" />
         <span className="truncate text-[11px] text-muted-foreground">Local MVP · No login</span>
       </div>
     </nav>

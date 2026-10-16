@@ -70,7 +70,7 @@ def _build_provider():
             "ERROR: provider resolved to StubAIProvider (no real LLM configured). "
             "The eval cannot measure LLM drift detection without an LLM. "
             "Pass `--provider routing` or set LLM_PROVIDER to a real provider "
-            "(routing, gemini, groq, fireworks)."
+            "(routing, gemini, groq)."
         )
     return provider
 

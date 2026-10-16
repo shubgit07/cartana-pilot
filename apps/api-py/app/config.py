@@ -21,14 +21,9 @@ class Settings(BaseSettings):
     # Redis (ARQ jobs)
     redis_url: str = "redis://localhost:6379"
 
-    # Storage
-    storage_driver: Literal["local", "s3"] = "local"
+    # Storage (local filesystem only)
+    storage_driver: Literal["local"] = "local"
     storage_local_root: str = "./storage"
-    aws_access_key_id: str | None = None
-    aws_secret_access_key: str | None = None
-    aws_region: str = "us-east-1"
-    aws_s3_bucket_name: str | None = None
-    aws_s3_endpoint_url: str | None = None
 
     # Embedding provider (EMBEDDING_DIM is locked at 768 per the agreed schema decision)
     embedding_provider: Literal["stub", "cloudflare"] = "stub"
@@ -52,7 +47,7 @@ class Settings(BaseSettings):
     upstash_redis_rest_token: str | None = None
 
     # LLM generation provider
-    llm_provider: Literal["stub", "fireworks", "groq", "gemini", "cerebras", "routing"] = "stub"
+    llm_provider: Literal["stub", "groq", "gemini", "cerebras", "routing"] = "stub"
     llm_model: str = "stub"
     openai_api_key: str | None = None
     anthropic_api_key: str | None = None
@@ -60,10 +55,6 @@ class Settings(BaseSettings):
     # Cerebras (Ultra-fast inference free tier)
     cerebras_api_key: str | None = None
     cerebras_model: str = "llama3.1-8b"
-
-    # Fireworks (Phase 3 audit LLM)
-    fireworks_api_key: str | None = None
-    fireworks_model: str = "accounts/fireworks/models/llama-v3p1-8b-instruct"
 
     # Groq (LLM_PROVIDER=routing → chat uses the chat model; extraction/audit fall back to Groq)
     groq_api_key: str | None = None

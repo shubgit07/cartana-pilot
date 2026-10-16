@@ -25,6 +25,7 @@ class RequirementVerificationVerdict(BaseModel):
     confidence: VerificationConfidenceLiteral = "high"
     evidenceFile: str | None = None
     evidenceSnippet: str | None = None
+    evidenceVerified: bool | None = None
     rationale: str
 
 
@@ -54,6 +55,8 @@ class PRTrustBrief(BaseModel):
     coveredCount: int
     partialCount: int
     missingCount: int
+    evidenceVerifiedCount: int = 0
+    evidenceUnverifiedCount: int = 0
     verdicts: list[RequirementVerificationVerdict] = Field(default_factory=list)
     riskAlerts: list[PRRiskAlert] = Field(default_factory=list)
     changedFilesSummary: list[ChangedFileSummary] = Field(default_factory=list)

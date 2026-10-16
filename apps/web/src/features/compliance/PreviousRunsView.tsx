@@ -1,30 +1,22 @@
 "use client";
 
 import * as React from "react";
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
+import { GitCommit, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import {
-  Clock,
-  GitCommit,
-  GitPullRequest,
-  History,
-  Loader2,
-} from "lucide-react";
 import { useVerificationRuns } from "@/hooks/api/compliance";
 import { formatDateTime } from "@/lib/format";
+import { cn } from "@/lib/cn";
+import type { PRTrustBrief } from "@cartana/shared";
 
 type Props = {
   projectId: string;
-  onSelectRun?: (brief: import("@cartana/shared").PRTrustBrief) => void;
+  onSelectRun?: (brief: PRTrustBrief) => void;
 };
 
+/**
+ * Audit trail as an accounting table: one row per run, hairline rules,
+ * uppercase column labels, tabular figures, sentence-case copy.
+ */
 export function PreviousRunsView({ projectId, onSelectRun }: Props) {
   const { runs, loading, error, reload, loadBrief } = useVerificationRuns(projectId);
   const [loadingRunId, setLoadingRunId] = React.useState<string | null>(null);
@@ -42,32 +34,30 @@ export function PreviousRunsView({ projectId, onSelectRun }: Props) {
   };
 
   return (
-    <Card>
-      <CardHeader className="gap-2 border-b border-border/70 pb-4">
-        <div className="flex items-center justify-between">
-          <div className="space-y-1">
-            <span className="eyebrow">Audit Trail</span>
-            <CardTitle className="text-base flex items-center gap-2">
-              <History className="h-4 w-4 text-muted-foreground" aria-hidden="true" />
-              Previous Verification Runs ({runs.length})
-            </CardTitle>
-            <CardDescription>
-              Historical PR compliance audits and snapshot verification verdicts.
-            </CardDescription>
-          </div>
+    <section className="rounded-md border border-border bg-card">
+      <header className="flex items-baseline justify-between border-b border-border px-4 py-3">
+        <div>
+          <p className="eyebrow">Audit trail</p>
+          <h2 className="mt-1 text-base font-semibold text-foreground">
+            Previous verification runs
+          </h2>
         </div>
-      </CardHeader>
+        <span className="font-mono text-xs text-muted-foreground tabular">{runs.length}</span>
+      </header>
 
-      <CardContent className="pt-4">
+      <div>
         {loading && (
-          <div className="flex items-center gap-2 py-6 text-xs text-muted-foreground" aria-live="polite">
+          <div
+            className="flex items-center gap-2 px-4 py-6 text-xs text-muted-foreground"
+            aria-live="polite"
+          >
             <Loader2 className="h-3.5 w-3.5 animate-spin" aria-hidden="true" />
-            Loading…
+            Loading
           </div>
         )}
 
         {!loading && error && (
-          <div className="space-y-2 py-4 text-xs" role="alert">
+          <div className="space-y-2 px-4 py-4 text-xs" role="alert">
             <p className="text-foreground">{error}</p>
             <Button size="sm" variant="outline" onClick={() => void reload()}>
               Retry
@@ -76,78 +66,82 @@ export function PreviousRunsView({ projectId, onSelectRun }: Props) {
         )}
 
         {!loading && !error && runs.length === 0 && (
-          <div className="py-6 text-center text-xs text-muted-foreground">
-            No verification runs yet. Verify a PR to start the audit trail.
-          </div>
+          <p className="px-4 py-6 text-center text-xs text-muted-foreground">
+            No verification runs yet. Verify a pull request to start the audit trail.
+          </p>
         )}
 
         {!loading && !error && runs.length > 0 && (
-          <div className="divide-y divide-border/60">
-            {runs.map((run) => (
-              <div
-                key={run.id}
-                className="flex flex-col sm:flex-row sm:items-center justify-between py-3 px-2 gap-3 hover:bg-surface-hover/50 rounded-md transition-colors text-xs"
-              >
-                <div className="space-y-1 min-w-0">
-                  <div className="flex items-center gap-2">
-                    <GitPullRequest className="h-3.5 w-3.5 text-muted-foreground shrink-0" aria-hidden="true" />
-                    <span className="font-medium text-foreground truncate">
-                      {run.title}
+          <table className="w-full border-collapse text-xs">
+            <thead>
+              <tr className="border-b border-border">
+                <th className="eyebrow px-4 py-2 text-left font-semibold">Run</th>
+                <th className="eyebrow px-4 py-2 text-left font-semibold">Commit</th>
+                <th className="eyebrow px-4 py-2 text-left font-semibold">Generated</th>
+                <th className="eyebrow px-4 py-2 text-right font-semibold">Coverage</th>
+                <th className="eyebrow px-4 py-2 text-right font-semibold">Trust</th>
+                <th className="px-4 py-2" aria-hidden="true" />
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-border/60">
+              {runs.map((run) => (
+                <tr key={run.id} className="transition-colors hover:bg-muted/20">
+                  <td className="max-w-[18rem] px-4 py-3">
+                    <span className="block truncate font-medium text-foreground">{run.title}</span>
+                    <span className="font-mono text-2xs text-muted-foreground">
+                      {run.id.slice(0, 12)}
                     </span>
-                    <Badge
-                      variant={run.trustLevel === "high" ? "success" : run.trustLevel === "medium" ? "warning" : "danger"}
-                      className="text-2xs py-0 px-1.5 font-mono uppercase"
-                    >
-                      {run.trustLevel} Trust
-                    </Badge>
-                  </div>
-
-                  <div className="flex items-center gap-3 text-2xs text-muted-foreground">
-                    {run.commitSha && (
-                      <>
-                        <span className="flex items-center gap-1 font-mono">
-                          <GitCommit className="h-3 w-3" aria-hidden="true" />
-                          {run.commitSha}
-                        </span>
-                        <span>•</span>
-                      </>
+                  </td>
+                  <td className="px-4 py-3 font-mono text-2xs text-muted-foreground">
+                    {run.commitSha ? (
+                      <span className="flex items-center gap-1">
+                        <GitCommit className="h-3 w-3" aria-hidden="true" />
+                        {run.commitSha}
+                      </span>
+                    ) : (
+                      "-"
                     )}
-                    <span className="flex items-center gap-1">
-                      <Clock className="h-3 w-3" aria-hidden="true" />
-                      {run.createdAt ? formatDateTime(run.createdAt) : "—"}
+                  </td>
+                  <td className="px-4 py-3 text-2xs text-muted-foreground">
+                    {run.createdAt ? formatDateTime(run.createdAt) : "-"}
+                  </td>
+                  <td className="whitespace-nowrap px-4 py-3 text-right font-mono tabular">
+                    <span className="text-foreground">{run.coverageScore}%</span>{" "}
+                    <span className="text-2xs text-muted-foreground">
+                      {run.coveredCount}/{run.totalRequirements}
                     </span>
-                    <span>•</span>
-                    <span className="font-mono text-foreground">
-                      ID: {run.id.slice(0, 12)}
+                  </td>
+                  <td className="px-4 py-3 text-right">
+                    <span
+                      className={cn(
+                        "font-mono text-2xs font-semibold uppercase tracking-[0.04em]",
+                        run.trustLevel === "high"
+                          ? "text-success"
+                          : run.trustLevel === "medium"
+                            ? "text-warning"
+                            : "text-danger"
+                      )}
+                    >
+                      {run.trustLevel}
                     </span>
-                  </div>
-                </div>
-
-                <div className="flex items-center gap-4 shrink-0">
-                  <div className="text-right">
-                    <div className="font-mono text-sm font-bold text-foreground tabular">
-                      {run.coverageScore}%
-                    </div>
-                    <div className="text-2xs text-muted-foreground tabular">
-                      {run.coveredCount}/{run.totalRequirements} covered
-                    </div>
-                  </div>
-
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    onClick={() => void handleViewReport(run.id)}
-                    disabled={loadingRunId === run.id}
-                    className="h-8 text-xs font-medium"
-                  >
-                    {loadingRunId === run.id ? "Loading…" : "View Report"}
-                  </Button>
-                </div>
-              </div>
-            ))}
-          </div>
+                  </td>
+                  <td className="whitespace-nowrap px-4 py-3 text-right">
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      onClick={() => void handleViewReport(run.id)}
+                      disabled={loadingRunId === run.id}
+                      className="h-7 text-2xs"
+                    >
+                      {loadingRunId === run.id ? "Loading" : "View report"}
+                    </Button>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
         )}
-      </CardContent>
-    </Card>
+      </div>
+    </section>
   );
 }

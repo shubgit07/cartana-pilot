@@ -8,12 +8,11 @@ export type ProjectTabProps = {
   [K in NavigationTab]: React.ReactNode;
 };
 
-/** Tab order is the focused left-to-right workflow: Requirements -> Repository -> Compliance -> Chat */
+/** Tab order is the focused left-to-right workflow: Requirements -> Repository -> Compliance */
 const TABS: ReadonlyArray<{ value: NavigationTab; label: string }> = [
   { value: "requirements", label: "Requirements" },
   { value: "repository", label: "Repository" },
   { value: "compliance", label: "Compliance" },
-  { value: "chat", label: "Chat" },
 ];
 
 export function ProjectTabs({
@@ -31,9 +30,8 @@ export function ProjectTabs({
       onValueChange={(v) => onValueChange(v as NavigationTab)}
       className="space-y-4"
     >
-      {/* Linear-style pill sub-tabs */}
+      {/* Underline tabs: uppercase micro-labels on a hairline rule */}
       <TabsList
-        variant="pill"
         aria-label="Project sections"
         className="scrollbar-thin w-full justify-start gap-1 overflow-x-auto"
       >

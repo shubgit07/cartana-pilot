@@ -4,8 +4,8 @@ import { cn } from "@/lib/cn";
 
 const badgeVariants = cva(
   cn(
-    "inline-flex items-center gap-1.5 rounded-full border px-2.5 py-0.5",
-    "text-xs font-medium leading-5",
+    "inline-flex items-center gap-1.5 rounded-sm border px-1.5 py-0.5",
+    "text-2xs font-semibold uppercase leading-4 tracking-[0.04em]",
     "transition-colors duration-150",
     "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/70 focus-visible:ring-offset-2 focus-visible:ring-offset-background"
   ),
@@ -13,10 +13,10 @@ const badgeVariants = cva(
     variants: {
       variant: {
         default: "border-transparent bg-primary text-primary-foreground",
-        secondary: "border-transparent bg-accent text-accent-foreground",
+        secondary: "border-border bg-surface text-muted-foreground",
         outline: "border-border text-foreground",
         muted: "border-transparent bg-muted text-muted-foreground",
-        // Semantic tones resolve through theme tokens: pastel in light, muted in dark.
+        // Semantic tones resolve through theme tokens.
         success: "border-transparent bg-success-soft text-success-soft-foreground",
         warning: "border-transparent bg-warning-soft text-warning-soft-foreground",
         info: "border-transparent bg-info-soft text-info-soft-foreground",

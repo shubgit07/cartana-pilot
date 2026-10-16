@@ -6,7 +6,6 @@ export { messageOf, useProject, useProjects } from "./projects";
 export type { ResourceState } from "./projects";
 export { useSourceStatus, useSources } from "./sources";
 export type { SourceLiveStatus } from "./sources";
-export { useChat } from "./chat";
 export { useRequirements } from "./requirements";
 export { useVerifyPR } from "./audit";
 export { useLatestRun, useVerificationRuns } from "./compliance";

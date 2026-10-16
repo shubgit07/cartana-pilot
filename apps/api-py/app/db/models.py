@@ -441,6 +441,7 @@ class RequirementVerdict(TimestampMixin, Base):
     verdict: Mapped[VerificationVerdict] = mapped_column(pgenum(VerificationVerdict, "VerificationVerdict"), nullable=False)
     confidence: Mapped[float] = mapped_column(Float, nullable=False)
     rationale: Mapped[str] = mapped_column(Text, nullable=False)
+    evidence_verified: Mapped[bool | None] = mapped_column("evidenceVerified", Boolean)
 
     verification_run: Mapped[VerificationRun] = relationship(back_populates="verdicts")
     requirement_revision: Mapped[RequirementRevision] = relationship(back_populates="verdicts")

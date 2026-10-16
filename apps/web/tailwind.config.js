@@ -21,7 +21,9 @@ module.exports = {
           "Arial",
           "sans-serif",
         ],
-        serif: ["var(--font-serif)", "Poppins", "ui-sans-serif", "system-ui", "sans-serif"],
+        // Geist carries both text and display; the previous Poppins display
+        // face is gone, so `font-serif` resolves to Geist for headings.
+        serif: ["var(--font-sans)", "ui-sans-serif", "system-ui", "sans-serif"],
 
         mono: [
           "var(--font-mono)",
@@ -96,16 +98,25 @@ module.exports = {
 
         destructive: "hsl(var(--destructive))",
         "destructive-foreground": "hsl(var(--destructive-foreground))",
+
+        diff: {
+          "add-bg": "hsl(var(--diff-add-bg))",
+          "add-fg": "hsl(var(--diff-add-fg))",
+          "del-bg": "hsl(var(--diff-del-bg))",
+          "del-fg": "hsl(var(--diff-del-fg))",
+          "hunk-bg": "hsl(var(--diff-hunk-bg))",
+          "hunk-fg": "hsl(var(--diff-hunk-fg))",
+        },
       },
-      // Linear radius scale: buttons/inputs 8px, cards 12px,
-      // screenshot panels 16px, pills 9999px.
+      // Document-minimalist scale: controls sit at 3-6px, panels at 8px.
+      // Pills are avoided; badges and buttons read as squared tags.
       borderRadius: {
-        xs: "4px",
-        sm: "6px",
-        md: "8px",
-        lg: "12px",
-        xl: "16px",
-        xxl: "24px",
+        xs: "3px",
+        sm: "4px",
+        md: "6px",
+        lg: "8px",
+        xl: "10px",
+        xxl: "14px",
       },
       boxShadow: {
         soft: "var(--shadow-soft)",

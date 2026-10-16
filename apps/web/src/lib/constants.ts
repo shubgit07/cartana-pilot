@@ -6,6 +6,5 @@ export const NAVIGATION_TABS = [
   "requirements",
   "repository",
   "compliance",
-  "chat",
 ] as const;
 export type NavigationTab = (typeof NAVIGATION_TABS)[number];

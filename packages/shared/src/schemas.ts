@@ -24,22 +24,6 @@ export type CreateSourceFromTextInput = z.infer<typeof CreateSourceFromTextSchem
 
 // Multipart upload is handled by multer in the api - no zod schema here.
 
-// ---- Chat ----
-
-export const ChatAskSchema = z.object({
-  question: z.string().min(1).max(4000),
-  history: z
-    .array(
-      z.object({
-        role: z.enum(["user", "assistant"]),
-        content: z.string().min(1).max(8000),
-      })
-    )
-    .max(40)
-    .optional(),
-});
-export type ChatAskInput = z.infer<typeof ChatAskSchema>;
-
 // ---- Requirement ----
 
 export const UpdateRequirementSchema = z.object({
@@ -65,6 +49,7 @@ export const RequirementVerificationVerdictSchema = z.object({
   confidence: z.enum(["high", "medium", "low"]),
   evidenceFile: z.string().nullable().optional(),
   evidenceSnippet: z.string().nullable().optional(),
+  evidenceVerified: z.boolean().nullable().optional(),
   rationale: z.string(),
 });
 
@@ -100,6 +85,8 @@ export const PRTrustBriefSchema = z.object({
   coveredCount: z.number(),
   partialCount: z.number(),
   missingCount: z.number(),
+  evidenceVerifiedCount: z.number().optional(),
+  evidenceUnverifiedCount: z.number().optional(),
   verdicts: z.array(RequirementVerificationVerdictSchema),
   riskAlerts: z.array(PRRiskAlertSchema),
   changedFilesSummary: z.array(ChangedFileSummarySchema),

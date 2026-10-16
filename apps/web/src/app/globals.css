@@ -4,15 +4,12 @@
 
 @layer base {
   /*
-   * Linear dark-only system (Step 1 of UI revamp).
-   * Canvas #010102 with a 4-step surface ladder; hierarchy comes from
-   * surfaces + 1px hairlines, never drop shadows. Lavender #5e6ad2 is the
-   * single chromatic accent (brand mark, primary CTA, focus ring).
-   * Light theme is parked: :root carries the dark tokens directly so there
-   * is no light flash; `.dark` below inherits them (ThemeToggle parked later).
+   * Dark-only document system. Hierarchy comes from a surface ladder plus
+   * 1px hairlines rather than shadows, in the style of a printed report.
+   * A single cool blue signal marks links, the primary action, and focus.
    */
   :root {
-    /* Canvas & surfaces — Linear surface ladder */
+    /* Canvas & surfaces — a receding 4-step ladder */
     --background: 240 33% 0.6%; /* canvas #010102 */
     --foreground: 180 7% 97%; /* ink #f7f8f8 */
 
@@ -34,19 +31,19 @@
     --muted: 210 5% 8%;
     --muted-foreground: 219 6% 57%;
 
-    /* Hairlines — deliberately blue-tinted grays from the Linear spec */
+    /* Hairlines — deliberately blue-tinted grays */
     --border: 223 9% 15%; /* hairline #23252a */
     --border-strong: 240 5% 22%; /* hairline-strong #34343a */
     --border-tertiary: 240 5% 25%; /* hairline-tertiary #3e3e44 */
     --input: 223 9% 15%;
 
-    /* Brand — Linear lavender. Scarce by design. */
-    --primary: 234 56% 60%; /* #5e6ad2 */
+    /* Brand — one cool blue signal. Scarce by design. */
+    --primary: 258 52% 58%; /* #5b6ee0 */
     --primary-foreground: 0 0% 100%;
-    --primary-hover: 234 100% 75%; /* #828fff */
-    --primary-focus: 234 56% 59%; /* #5e69d1 */
-    --primary-soft: 234 40% 18%;
-    --primary-soft-foreground: 234 100% 82%;
+    --primary-hover: 258 60% 66%;
+    --primary-focus: 258 52% 57%;
+    --primary-soft: 258 40% 18%;
+    --primary-soft-foreground: 258 100% 85%;
 
     --accent: 210 5% 8%;
     --accent-foreground: 180 7% 97%;
@@ -76,7 +73,15 @@
     --destructive: 4 50% 52%;
     --destructive-foreground: 5 25% 96%;
 
-    --ring: 234 56% 59%;
+    --ring: 258 52% 57%;
+
+    /* Diff rendering — evidence is shown as real diff context */
+    --diff-add-bg: 142 40% 12%;
+    --diff-add-fg: 141 55% 72%;
+    --diff-del-bg: 4 45% 15%;
+    --diff-del-fg: 4 60% 74%;
+    --diff-hunk-bg: 258 35% 14%;
+    --diff-hunk-fg: 258 45% 78%;
 
     /* Shape & depth — Linear resists shadows; lifted panels get a faint
        top-edge highlight instead ("pixel rendered" feel). */
@@ -90,11 +95,6 @@
       0 0 0 1px hsl(240 5% 22%), 0 24px 64px hsl(0 0% 0% / 0.6);
   }
 
-  /*
-   * Dark-only: inherits :root tokens above. Kept as a selector so the
-   * `dark` class (ThemeProvider / themeScript) keeps working until the
-   * ThemeToggle is parked in the Shell step.
-   */
   .dark {
     color-scheme: dark;
   }
@@ -107,10 +107,6 @@
   html {
     color-scheme: dark;
     -webkit-tap-highlight-color: transparent;
-  }
-
-  html.dark {
-    color-scheme: dark;
   }
 
   body {
@@ -188,10 +184,10 @@
     @apply focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/70 focus-visible:ring-offset-2 focus-visible:ring-offset-background;
   }
 
-  /* Small uppercase section label — Linear eyebrow uses +0.4px tracking. */
+  /* Small uppercase micro-label above sections and table columns. */
   .eyebrow {
     @apply text-2xs font-semibold uppercase text-muted-foreground;
-    letter-spacing: 0.4px;
+    letter-spacing: 0.04em;
   }
 
   /* Lottie motion icon — scale to its box. Stroke/fill color is applied at

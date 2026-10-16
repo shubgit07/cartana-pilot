@@ -13,6 +13,7 @@ from app.providers.cache_provider import (
 
 
 def test_memory_cache_fallback():
+    project_id = "proj-1"
     spec_hash = "spec_12345"
     diff_hash = "diff_abcde"
     mock_brief = {
@@ -25,21 +26,24 @@ def test_memory_cache_fallback():
     }
 
     # Ensure clean state
-    key = f"audit:cache:{spec_hash}:{diff_hash}"
+    key = f"audit:cache:{project_id}:{spec_hash}:{diff_hash}"
     _MEMORY_CACHE.pop(key, None)
 
     # 1. First fetch should return None
-    cached = get_cached_audit(spec_hash, diff_hash)
+    cached = get_cached_audit(project_id, spec_hash, diff_hash)
     assert cached is None
 
     # 2. Cache output
-    cache_audit(spec_hash, diff_hash, mock_brief, ttl_seconds=3600)
+    cache_audit(project_id, spec_hash, diff_hash, mock_brief, ttl_seconds=3600)
 
     # 3. Subsequent fetch should return the cached dict
-    cached_again = get_cached_audit(spec_hash, diff_hash)
+    cached_again = get_cached_audit(project_id, spec_hash, diff_hash)
     assert cached_again is not None
     assert cached_again["id"] == "brief-1"
     assert cached_again["coverageScore"] == 90
+
+    # 4. Same hashes under another project must not collide
+    assert get_cached_audit("proj-2", spec_hash, diff_hash) is None
 
 
 def test_check_rate_limit_sliding_window():

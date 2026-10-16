@@ -1,6 +1,6 @@
-"""JSON-mode prompts for LLM-backed requirement/task extraction.
+"""JSON-mode prompts for LLM-backed requirement extraction.
 
-Used by OpenAI-compatible providers (Groq, Fireworks). Chunks are labeled
+Used by OpenAI-compatible providers (Groq, Cerebras). Chunks are labeled
 ``[n]`` so the model can cite the exact chunk(s) a requirement/task came from;
 the provider maps those labels back to chunk IDs.
 """

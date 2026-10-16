@@ -4,6 +4,7 @@ Orchestrates the multi-stage PR verification pipeline:
   START -> check_cache -> [hit? END : extract_spec]
         -> clean_diff
         -> code_verifier (Stage 2 LLM Call)
+        -> verify_evidence (deterministic, 0 LLM)
         -> risk_analyst (Stage 3 LLM Call)
         -> persist_and_cache
         -> END
@@ -26,6 +27,12 @@ from app.api.schemas.audit import (
 )
 from app.core.clean_text import clean_document_text
 from app.core.diff_parser import parse_unified_diff
+from app.core.evidence import (
+    build_diff_index,
+    compute_coverage_score,
+    compute_trust_level,
+    validate_evidence,
+)
 from app.core.errors import LLMServiceError, ValidationError
 from app.providers.ai_provider import (
     AIChatInput,
@@ -69,6 +76,11 @@ class PRVerificationState(TypedDict, total=False):
 
     # Stage 2: Verification Verdicts
     verdicts: list[RequirementVerificationVerdict]
+
+    # Evidence Gate (deterministic)
+    diff_index: dict[str, str]
+    evidence_verified_count: int
+    evidence_unverified_count: int
 
     # Stage 3: Risk & Trust Analysis
     coverage_score: int
@@ -165,7 +177,7 @@ def _parse_risk_analysis(raw_json: str | None, *, label: str) -> dict[str, Any] 
     except Exception as e:  # noqa: BLE001
         logger.warning("%s output was not valid JSON: %s", label, e)
         return None
-    if isinstance(parsed, dict) and "coverageScore" in parsed:
+    if isinstance(parsed, dict) and "summary" in parsed:
         return parsed
     return None
 
@@ -174,8 +186,12 @@ def _run_stage3_risk_analysis(
     provider: Any,
     verdicts: list[RequirementVerificationVerdict],
     changed_files: list[dict[str, Any]],
-) -> tuple[int, str, str, list[PRRiskAlert]]:
-    """Stage 3: Risk, Security & Trust Analyst (LLM Call 2)."""
+) -> tuple[str, list[PRRiskAlert]]:
+    """Stage 3: Risk analyst (LLM Call 2) - summary + risk alerts only.
+
+    The coverage score and trust level are computed deterministically from
+    the verdicts; the model is never asked for them.
+    """
     verdicts_dict = [v.model_dump() for v in verdicts]
     system_prompt, user_prompt = build_pr_risk_summary_prompt(verdicts_dict, changed_files)
     parsed: dict[str, Any] | None = None
@@ -212,13 +228,7 @@ def _run_stage3_risk_analysis(
                 affectedFiles=[str(f) for f in a.get("affectedFiles", [])],
             ))
 
-        trust_val = str(parsed.get("trustLevel", "medium")).lower()
-        if trust_val not in ("high", "medium", "low"):
-            trust_val = "medium"
-
         return (
-            int(parsed.get("coverageScore", 0)),
-            trust_val,
             str(parsed.get("summary", "")),
             alerts,
         )
@@ -243,7 +253,7 @@ def check_cache_node(state: PRVerificationState) -> dict[str, Any]:
     spec_hash = hashlib.sha256(spec_raw.encode("utf-8")).hexdigest()[:16]
     diff_hash = hashlib.sha256(diff_raw.encode("utf-8")).hexdigest()[:16]
 
-    cached = get_cached_audit(spec_hash, diff_hash)
+    cached = get_cached_audit(state.get("project_id", ""), spec_hash, diff_hash)
     if cached:
         logger.info("LangGraph Node [check_cache]: Cache hit for spec_hash=%s, diff_hash=%s", spec_hash, diff_hash)
         return {
@@ -307,6 +317,7 @@ def clean_diff_node(state: PRVerificationState) -> dict[str, Any]:
         "changed_files": changed_files_dict,
         "changed_files_summary": changed_files_summary,
         "compressed_diff": parsed_diff.compressed_text,
+        "diff_index": build_diff_index(parsed_diff.files),
     }
 
 
@@ -369,15 +380,36 @@ def _build_repo_context(state: PRVerificationState, *, top_k: int = 2) -> str:
         return ""
 
 
+def verify_evidence_node(state: PRVerificationState) -> dict[str, Any]:
+    """Node 5: Deterministic evidence gate (0 LLM).
+
+    Every evidence claim is checked against the real diff (or the retrieved
+    repository context). Claims that cannot be found there are flagged and
+    downgraded, so unverified evidence never counts toward coverage.
+    """
+    verdicts, verified, unverified = validate_evidence(
+        state["verdicts"],
+        state.get("diff_index", {}),
+        state.get("repo_context", "") or "",
+    )
+    return {
+        "verdicts": verdicts,
+        "evidence_verified_count": verified,
+        "evidence_unverified_count": unverified,
+    }
+
+
 def risk_analyst_node(state: PRVerificationState) -> dict[str, Any]:
-    """Node 5: Stage 3 Risk, Security & Trust Analyst (LLM Call 2)."""
+    """Node 6: Stage 3 Risk analyst (LLM Call 2) + deterministic score/trust."""
     provider = get_ai_provider()
     verdicts = state["verdicts"]
     changed_files = state["changed_files"]
 
-    score, trust_level, summary_text, risk_alerts = _run_stage3_risk_analysis(
+    summary_text, risk_alerts = _run_stage3_risk_analysis(
         provider, verdicts, changed_files
     )
+    score = compute_coverage_score(verdicts)
+    trust_level = compute_trust_level(verdicts, risk_alerts, score)
 
     return {
         "coverage_score": score,
@@ -426,6 +458,8 @@ def persist_and_cache_node(state: PRVerificationState) -> dict[str, Any]:
         coveredCount=covered_count,
         partialCount=partial_count,
         missingCount=missing_count,
+        evidenceVerifiedCount=state.get("evidence_verified_count", 0),
+        evidenceUnverifiedCount=state.get("evidence_unverified_count", 0),
         verdicts=verdicts,
         riskAlerts=risk_alerts,
         changedFilesSummary=changed_files_summary,
@@ -433,7 +467,7 @@ def persist_and_cache_node(state: PRVerificationState) -> dict[str, Any]:
     )
 
     # Cache for 24 hours
-    cache_audit(spec_hash, diff_hash, brief.model_dump(), ttl_seconds=86400)
+    cache_audit(project_id, spec_hash, diff_hash, brief.model_dump(), ttl_seconds=86400)
 
     # Persist the audit trail (best-effort; never fails verification).
     db = state.get("db")
@@ -452,7 +486,7 @@ def persist_and_cache_node(state: PRVerificationState) -> dict[str, Any]:
             )
             if run_id is not None:
                 brief.id = run_id
-                cache_audit(spec_hash, diff_hash, brief.model_dump(), ttl_seconds=86400)
+                cache_audit(project_id, spec_hash, diff_hash, brief.model_dump(), ttl_seconds=86400)
         except Exception as exc:  # noqa: BLE001
             logger.warning("Verification persistence skipped: %s", exc)
 
@@ -487,6 +521,7 @@ def build_pr_verification_graph():
     workflow.add_node("extract_spec", extract_spec_node)
     workflow.add_node("clean_diff", clean_diff_node)
     workflow.add_node("code_verifier", code_verifier_node)
+    workflow.add_node("verify_evidence", verify_evidence_node)
     workflow.add_node("risk_analyst", risk_analyst_node)
     workflow.add_node("persist_and_cache", persist_and_cache_node)
 
@@ -502,7 +537,8 @@ def build_pr_verification_graph():
     )
     workflow.add_edge("extract_spec", "clean_diff")
     workflow.add_edge("clean_diff", "code_verifier")
-    workflow.add_edge("code_verifier", "risk_analyst")
+    workflow.add_edge("code_verifier", "verify_evidence")
+    workflow.add_edge("verify_evidence", "risk_analyst")
     workflow.add_edge("risk_analyst", "persist_and_cache")
     workflow.add_edge("persist_and_cache", END)
 

@@ -8,6 +8,14 @@ const nextConfig = {
   env: {
     NEXT_PUBLIC_API_BASE_URL: process.env.NEXT_PUBLIC_API_BASE_URL || "/api",
   },
+  async rewrites() {
+    return [
+      {
+        source: "/api/:path*",
+        destination: "https://cartana-api.onrender.com/:path*",
+      },
+    ];
+  },
 };
 
 module.exports = nextConfig;

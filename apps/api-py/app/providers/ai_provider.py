@@ -1,8 +1,8 @@
 """AI provider interface and concrete implementations.
 
 Port of ``apps/api/src/ai/AIProvider.ts``. A single interface across concrete
-providers — stub (heuristic), Fireworks, Groq, Cerebras and Gemini — so
-swapping is a single config change.
+providers — stub (heuristic), Groq, Cerebras and Gemini — so swapping is a
+single config change.
 
 All providers return the same data shapes so the service layer is agnostic.
 """
@@ -234,122 +234,6 @@ class StubAIProvider:
         return extract_requirements_stub(input)
 
 
-# ---- Fireworks provider ----
-
-
-class FireworksAIProvider:
-    """Fireworks AI — OpenAI-compatible chat completions with JSON mode."""
-
-    id = "fireworks"
-    _url = "https://api.fireworks.ai/inference/v1/chat/completions"
-
-    def __init__(self, api_key: str, model: str) -> None:
-        self._model = model
-        self._headers = {
-            "Authorization": f"Bearer {api_key}",
-            "Content-Type": "application/json",
-        }
-
-    def chat(self, input: AIChatInput) -> AIChatOutput:
-        sys_prompt = _build_system_prompt(input)
-        messages = [{"role": "system", "content": sys_prompt}]
-        for m in input.history:
-            messages.append({"role": m["role"], "content": m["content"]})
-        messages.append({"role": "user", "content": input.question})
-
-        body = {
-            "model": self._model,
-            "messages": messages,
-            "max_tokens": 2048,
-            "temperature": 0.3,
-        }
-        resp = httpx.post(self._url, json=body, headers=self._headers, timeout=60)
-        if resp.status_code != 200:
-            raise RuntimeError(f"Fireworks LLM failed: {resp.status_code} {resp.text}")
-
-        choices = resp.json().get("choices", [])
-        answer = choices[0]["message"]["content"] if choices else ""
-        return AIChatOutput(answer=answer, citations=_build_citations(input.passages))
-
-    def _structured(self, system: str, user: str, *, max_tokens: int, temperature: float) -> str:
-        body = {
-            "model": self._model,
-            "messages": [
-                {"role": "system", "content": system},
-                {"role": "user", "content": user},
-            ],
-            "response_format": {"type": "json_object"},
-            "max_tokens": max_tokens,
-            "temperature": temperature,
-        }
-        resp = httpx.post(self._url, json=body, headers=self._headers, timeout=60)
-        if resp.status_code != 200:
-            raise RuntimeError(f"Fireworks LLM failed: {resp.status_code} {resp.text}")
-
-        choices = resp.json().get("choices", [])
-        return choices[0]["message"]["content"] if choices else ""
-
-    def extract_requirements(self, input: AIExtractRequirementsInput) -> list[ExtractedRequirement]:
-        return extract_requirements_stub(input)
-
-    '''Legacy standalone task/coverage methods removed.
-    def extract_tasks(self, input: AIExtractTasksInput) -> list[ExtractedTask]:
-        return extract_tasks_stub(input)
-
-    def audit_coverage(self, input: AIAuditCoverageInput) -> AIAuditCoverageOutput:
-        system_prompt, user_prompt = build_coverage_prompt(input)
-        body = {
-            "model": self._model,
-            "messages": [
-                {"role": "system", "content": system_prompt},
-                {"role": "user", "content": user_prompt},
-            ],
-            "response_format": {"type": "json_object"},
-            "max_tokens": 2048,
-            "temperature": 0.2,
-        }
-        resp = httpx.post(self._url, json=body, headers=self._headers, timeout=60)
-        if resp.status_code != 200:
-            raise RuntimeError(f"Fireworks audit failed: {resp.status_code} {resp.text}")
-
-        choices = resp.json().get("choices", [])
-        raw = choices[0]["message"]["content"] if choices else "{}"
-
-        try:
-            parsed = json.loads(raw)
-            judgments = [
-                CoverageJudgment(
-                    status=_normalize_status(j.get("status")),
-                    rationale=j.get("rationale", ""),
-                )
-                for j in parsed.get("judgments", [])
-            ]
-            return AIAuditCoverageOutput(judgments=judgments)
-        except (json.JSONDecodeError, KeyError):
-            logger.warning("Fireworks audit returned invalid JSON — falling back to stub")
-            return coverage_stub(input)
-
-    def risk_summary(self, input: AIRiskSummaryInput) -> AIRiskSummaryOutput:
-        prompt = build_risk_summary_prompt(input)
-        body = {
-            "model": self._model,
-            "messages": [
-                {"role": "system", "content": "You are a project risk analyst. Be concise."},
-                {"role": "user", "content": prompt},
-            ],
-            "max_tokens": 1024,
-            "temperature": 0.3,
-        }
-        resp = httpx.post(self._url, json=body, headers=self._headers, timeout=60)
-        if resp.status_code != 200:
-            raise RuntimeError(f"Fireworks risk summary failed: {resp.status_code} {resp.text}")
-
-        choices = resp.json().get("choices", [])
-        summary = choices[0]["message"]["content"] if choices else ""
-        return AIRiskSummaryOutput(summary=summary)
-    '''
-
-
 # ---- Groq provider ----
 
 GROQ_URL = "https://api.groq.com/openai/v1/chat/completions"
@@ -453,71 +337,6 @@ class GroqAIProvider:
                 chunkIds=ids,
             ))
         return out
-
-    '''Legacy standalone task/coverage methods removed.
-    def extract_tasks(self, input: AIExtractTasksInput) -> list[ExtractedTask]:
-        system, user = build_extract_tasks_prompt(input)
-        chunk_ids = [str(c.get("id", "")) for c in input.chunks]
-
-        try:
-            parsed = json.loads(self._structured(system, user, max_tokens=2048, temperature=0.2))
-            items = parsed.get("tasks", [])
-        except json.JSONDecodeError:
-            logger.warning("Groq tasks extraction returned invalid JSON — using stub")
-            return extract_tasks_stub(input)
-
-        out: list[ExtractedTask] = []
-        for item in items:
-            title = str(item.get("title", "")).strip()
-            if not title:
-                continue
-            idxs = item.get("chunkIndexes") or []
-            ids = [
-                chunk_ids[i - 1]
-                for i in idxs
-                if isinstance(i, int) and 1 <= i <= len(chunk_ids)
-            ]
-            if not ids and chunk_ids:
-                ids = [chunk_ids[0]]
-            linked = item.get("linkedRequirementTitle")
-            out.append(ExtractedTask(
-                title=title,
-                description=str(item.get("description", "")).strip(),
-                chunkIds=ids,
-                linkedRequirementTitle=str(linked) if linked else None,
-            ))
-        return out
-
-    def audit_coverage(self, input: AIAuditCoverageInput) -> AIAuditCoverageOutput:
-        system_prompt, user_prompt = build_coverage_prompt(input)
-        raw = self._structured(system_prompt, user_prompt, max_tokens=1024, temperature=0.2)
-
-        try:
-            parsed = json.loads(raw)
-            judgments = [
-                CoverageJudgment(
-                    status=_normalize_status(j.get("status")),
-                    rationale=j.get("rationale", ""),
-                )
-                for j in parsed.get("judgments", [])
-            ]
-            return AIAuditCoverageOutput(judgments=judgments)
-        except (json.JSONDecodeError, KeyError):
-            logger.warning("Groq audit returned invalid JSON — falling back to stub")
-            return coverage_stub(input)
-
-    def risk_summary(self, input: AIRiskSummaryInput) -> AIRiskSummaryOutput:
-        answer = self._post_with_retry({
-            "model": self._model,
-            "messages": [
-                {"role": "system", "content": "You are a project risk analyst. Be concise."},
-                {"role": "user", "content": build_risk_summary_prompt(input)},
-            ],
-            "max_tokens": 1024,
-            "temperature": 0.3,
-        })
-        return AIRiskSummaryOutput(summary=answer)
-    '''
 
 
 # ---- Cerebras provider ----
@@ -623,67 +442,6 @@ class CerebrasAIProvider:
                 chunkIds=ids,
             ))
         return out
-
-    '''Legacy standalone task/coverage methods removed.
-    def extract_tasks(self, input: AIExtractTasksInput) -> list[ExtractedTask]:
-        system, user = build_extract_tasks_prompt(input)
-        chunk_ids = [str(c.get("id", "")) for c in input.chunks]
-
-        parsed = _safe_json_loads(
-            self._structured(system, user, max_tokens=4096, temperature=0.2),
-            label="Cerebras tasks extraction",
-        )
-        items = parsed.get("tasks", []) if isinstance(parsed, dict) else []
-
-        out: list[ExtractedTask] = []
-        for item in items:
-            title = str(item.get("title", "")).strip()
-            if not title:
-                continue
-            idxs = item.get("chunkIndexes") or []
-            ids = [
-                chunk_ids[i - 1]
-                for i in idxs
-                if isinstance(i, int) and 1 <= i <= len(chunk_ids)
-            ]
-            if not ids and chunk_ids:
-                ids = [chunk_ids[0]]
-            linked = item.get("linkedRequirementTitle")
-            out.append(ExtractedTask(
-                title=title,
-                description=str(item.get("description", "")).strip(),
-                chunkIds=ids,
-                linkedRequirementTitle=str(linked) if linked else None,
-            ))
-        return out
-
-    def audit_coverage(self, input: AIAuditCoverageInput) -> AIAuditCoverageOutput:
-        system_prompt, user_prompt = build_coverage_prompt(input)
-        parsed = _safe_json_loads(
-            self._structured(system_prompt, user_prompt, max_tokens=1024, temperature=0.2),
-            label="Cerebras coverage audit",
-        )
-        judgments = [
-            CoverageJudgment(
-                status=_normalize_status(j.get("status")),
-                rationale=j.get("rationale", ""),
-            )
-            for j in parsed.get("judgments", [])
-        ] if isinstance(parsed, dict) else []
-        return AIAuditCoverageOutput(judgments=judgments)
-
-    def risk_summary(self, input: AIRiskSummaryInput) -> AIRiskSummaryOutput:
-        answer = self._post_with_retry({
-            "model": self._model,
-            "messages": [
-                {"role": "system", "content": "You are a project risk analyst. Be concise."},
-                {"role": "user", "content": build_risk_summary_prompt(input)},
-            ],
-            "max_tokens": 1024,
-            "temperature": 0.3,
-        })
-        return AIRiskSummaryOutput(summary=answer)
-    '''
 
 
 # ---- Gemini provider ----
@@ -794,64 +552,6 @@ class GeminiAIProvider:
                 chunkIds=ids,
             ))
         return out
-
-    '''Legacy standalone task/coverage methods removed.
-    def extract_tasks(self, input: AIExtractTasksInput) -> list[ExtractedTask]:
-        system, user = build_extract_tasks_prompt(input)
-        chunk_ids = [str(c.get("id", "")) for c in input.chunks]
-
-        parsed = _safe_json_loads(
-            self._structured(system, user, max_tokens=8192, temperature=0.2),
-            label="Gemini tasks extraction",
-        )
-        items = parsed.get("tasks", []) if isinstance(parsed, dict) else []
-
-        out: list[ExtractedTask] = []
-        for item in items:
-            title = str(item.get("title", "")).strip()
-            if not title:
-                continue
-            idxs = item.get("chunkIndexes") or []
-            ids = [
-                chunk_ids[i - 1]
-                for i in idxs
-                if isinstance(i, int) and 1 <= i <= len(chunk_ids)
-            ]
-            if not ids and chunk_ids:
-                ids = [chunk_ids[0]]
-            linked = item.get("linkedRequirementTitle")
-            out.append(ExtractedTask(
-                title=title,
-                description=str(item.get("description", "")).strip(),
-                chunkIds=ids,
-                linkedRequirementTitle=str(linked) if linked else None,
-            ))
-        return out
-
-    def audit_coverage(self, input: AIAuditCoverageInput) -> AIAuditCoverageOutput:
-        system_prompt, user_prompt = build_coverage_prompt(input)
-
-        parsed = _safe_json_loads(
-            self._structured(system_prompt, user_prompt, max_tokens=1024, temperature=0.2),
-            label="Gemini coverage audit",
-        )
-        judgments = [
-            CoverageJudgment(
-                status=_normalize_status(j.get("status")),
-                rationale=j.get("rationale", ""),
-            )
-            for j in parsed.get("judgments", [])
-        ] if isinstance(parsed, dict) else []
-        return AIAuditCoverageOutput(judgments=judgments)
-
-    def risk_summary(self, input: AIRiskSummaryInput) -> AIRiskSummaryOutput:
-        answer = self._generate_with_retry({
-            "systemInstruction": {"parts": [{"text": "You are a project risk analyst. Be concise."}]},
-            "contents": [{"role": "user", "parts": [{"text": build_risk_summary_prompt(input)}]}],
-            "generationConfig": {"temperature": 0.3, "maxOutputTokens": 1024},
-        })
-        return AIRiskSummaryOutput(summary=answer)
-    '''
 
 
 # ---- Fallback provider ----
@@ -1008,11 +708,5 @@ def get_ai_provider() -> AIProvider:
             logger.warning("LLM_PROVIDER=gemini but GEMINI_API_KEY missing. Using stub.")
             return StubAIProvider()
         return GeminiAIProvider(settings.gemini_api_key, settings.gemini_chat_model)
-
-    if provider == "fireworks":
-        if not settings.fireworks_api_key:
-            logger.warning("LLM_PROVIDER=fireworks but FIREWORKS_API_KEY missing. Using stub.")
-            return StubAIProvider()
-        return FireworksAIProvider(settings.fireworks_api_key, settings.fireworks_model)
 
     return StubAIProvider()

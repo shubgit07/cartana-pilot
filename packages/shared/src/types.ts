@@ -32,25 +32,6 @@ export interface SourceSummary {
   chunkCount: number;
 }
 
-export interface ChatMessage {
-  role: "user" | "assistant";
-  content: string;
-  citations?: ChatCitation[];
-  createdAt: string;
-}
-
-export interface ChatCitation {
-  sourceId: string;
-  filename: string;
-  chunkId: string;
-  snippet: string;
-  score: number;
-}
-
-export interface ChatResponse {
-  message: ChatMessage;
-}
-
 export interface JobStatusView {
   sourceId: string;
   status: SourceStatus;
@@ -98,6 +79,14 @@ export interface RequirementVerificationVerdict {
   confidence: VerificationConfidence;
   evidenceFile?: string | null;
   evidenceSnippet?: string | null;
+  /**
+   * Deterministic check of the evidence claim: `true` when the cited file is
+   * a changed file and the snippet appears in its diff, `false` when the claim
+   * could not be found, `null` when the verdict claims no evidence at all.
+   * Unverified claims are downgraded to `unclear` and never count toward
+   * coverage.
+   */
+  evidenceVerified?: boolean | null;
   rationale: string;
 }
 
@@ -127,6 +116,10 @@ export interface PRTrustBrief {
   coveredCount: number;
   partialCount: number;
   missingCount: number;
+  /** Verdicts whose evidence was found in the diff. */
+  evidenceVerifiedCount?: number;
+  /** Verdicts whose evidence claim could not be found in the diff. */
+  evidenceUnverifiedCount?: number;
   verdicts: RequirementVerificationVerdict[];
   riskAlerts: PRRiskAlert[];
   changedFilesSummary: ChangedFileSummary[];

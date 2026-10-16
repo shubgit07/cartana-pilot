@@ -1,7 +1,7 @@
 "use client";
 
 import * as React from "react";
-import { AlertTriangle, CheckCircle2, GitCommit, GitPullRequest, Loader2 } from "lucide-react";
+import { AlertTriangle, CheckCircle2, GitCommit, GitPullRequest, Loader2, RefreshCw } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/components/ui/toast";
 import { useRepository } from "@/hooks/api/repository";
@@ -19,7 +19,8 @@ type Selection = { url: string; headSha: string; label: string } | null;
 /** Verify against the connected repo: latest commit, an open PR, or a past commit. */
 export function RepoVerifyPicker({ projectId, verifying, onVerifyUrl }: Props) {
   const { toast } = useToast();
-  const { status, pulls, commits, loading, loadPulls, loadCommits } = useRepository(projectId);
+  const { status, pulls, commits, loading, loadPulls, loadCommits, resync, syncing } =
+    useRepository(projectId);
   const [listsLoading, setListsLoading] = React.useState(false);
   const [selection, setSelection] = React.useState<Selection>(null);
 
@@ -55,7 +56,7 @@ export function RepoVerifyPicker({ projectId, verifying, onVerifyUrl }: Props) {
       <p className="py-2 text-xs leading-relaxed text-muted-foreground">
         No repository connected yet. Link a public GitHub repo in the{" "}
         <span className="font-medium text-foreground">Repository</span> tab to verify its
-        latest commit or open pull requests here — or paste a diff instead.
+        latest commit or open pull requests here, or paste a diff instead.
       </p>
     );
   }
@@ -76,6 +77,27 @@ export function RepoVerifyPicker({ projectId, verifying, onVerifyUrl }: Props) {
       toast({
         title: "Verification failed",
         description: messageOf(err) ?? "Failed to analyze.",
+        variant: "destructive",
+      });
+    }
+  }
+
+  /** Manual-only resync: refresh the Codebase Index to the repo HEAD on demand.
+   * Never runs automatically — verification always uses the indexed snapshot. */
+  async function handleSync() {
+    try {
+      const result = await resync();
+      await Promise.all([loadPulls(), loadCommits()]);
+      toast({
+        title: result.upToDate ? "Already up to date" : "Codebase Index synced",
+        description: result.upToDate
+          ? `Index already matches ${result.commitSha.slice(0, 7)}.`
+          : `Now at ${result.commitSha.slice(0, 7)}, ${result.filesIndexed} file(s), ${result.chunksCreated} chunk(s) indexed.`,
+      });
+    } catch (err: unknown) {
+      toast({
+        title: "Sync failed",
+        description: messageOf(err) ?? "Could not sync the repository.",
         variant: "destructive",
       });
     }
@@ -170,7 +192,7 @@ export function RepoVerifyPicker({ projectId, verifying, onVerifyUrl }: Props) {
                     )}
                     <span className="min-w-0 flex-1">
                       <span className="block truncate font-medium text-foreground">
-                        {i === 0 ? "Latest commit — " : ""}{commit.message || commit.sha.slice(0, 7)}
+                        {i === 0 ? "Latest commit: " : ""}{commit.message || commit.sha.slice(0, 7)}
                       </span>
                       <span className="block truncate font-mono text-2xs text-muted-foreground">
                         {commit.sha.slice(0, 7)}
@@ -185,12 +207,24 @@ export function RepoVerifyPicker({ projectId, verifying, onVerifyUrl }: Props) {
       )}
 
       {stale && selection && (
-        <p role="status" className="flex items-start gap-1.5 rounded-md border border-warning/30 bg-warning-soft/40 px-3 py-2 text-xs leading-relaxed text-warning-soft-foreground">
+        <div role="status" className="flex items-start gap-2 rounded-md border border-warning/30 bg-warning-soft/40 px-3 py-2 text-xs leading-relaxed text-warning-soft-foreground">
           <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0" aria-hidden="true" />
-          Codebase Index is at {indexSha?.slice(0, 7)} but {selection.label} points at{" "}
-          {selection.headSha.slice(0, 7)}. Verdicts use the indexed code — sync to the PR
-          head from the Repository tab for exact context.
-        </p>
+          <p className="min-w-0 flex-1">
+            Codebase Index is at {indexSha?.slice(0, 7)} but {selection.label} points at{" "}
+            {selection.headSha.slice(0, 7)}. Verdicts use the indexed code.
+          </p>
+          <Button
+            type="button"
+            size="sm"
+            variant="outline"
+            onClick={() => void handleSync()}
+            disabled={syncing || verifying}
+            className="shrink-0 gap-1.5"
+          >
+            <RefreshCw className={`h-3.5 w-3.5 ${syncing ? "animate-spin" : ""}`} aria-hidden="true" />
+            {syncing ? "Syncing…" : "Sync now"}
+          </Button>
+        </div>
       )}
 
       <div className="flex justify-end">

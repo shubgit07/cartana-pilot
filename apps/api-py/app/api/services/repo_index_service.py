@@ -15,9 +15,15 @@ Design notes (kept deliberately narrow):
   upserted as ``{id=CodeChunk.id, vector, payload}`` for semantic retrieval.
   Postgres ``Vector`` columns are never queried (no pgvector distance
   operators); they stay NULL-friendly for audit and keyword fallback.
-- Re-syncs are idempotent: files with an unchanged ``contentHash`` are
-  skipped, changed files are re-chunked, and a new ``IndexRun`` records
-  each sync for auditability. Qdrant upserts are idempotent by point id.
+- Phase 1 (free, stdlib-only): ``app.core.symbols`` extracts defined
+  symbols (Python AST, regex elsewhere) into ``CodeSymbol`` rows and
+  ``chunk_code_with_symbols`` keeps signatures with bodies. Retrieval fuses
+  exact symbol matches (boosted) with Qdrant vectors and keyword fallback.
+  No new model, no dim change, no migration — the table already exists.
+- Re-syncs are idempotent: files with an unchanged ``contentHash`` skip
+  re-chunking (symbols are backfilled when missing), changed files are
+  re-chunked, and a new ``IndexRun`` records each sync for auditability.
+  Qdrant upserts are idempotent by point id.
 """
 from __future__ import annotations
 
@@ -31,11 +37,13 @@ from sqlalchemy import delete, select
 from sqlalchemy.orm import Session
 
 from app.api.services.project_service import get_owned_project
-from app.core.chunking import chunk_code_lines
+from app.core.chunking import chunk_code_lines, chunk_code_with_symbols
 from app.core.diff_parser import IGNORED_RE
 from app.core.errors import ValidationError
+from app.core.symbols import SymbolSpan, extract_symbols
 from app.db.models import (
     CodeChunk,
+    CodeSymbol,
     IndexRun,
     RepositoryConnection,
     RepositoryFile,
@@ -43,6 +51,7 @@ from app.db.models import (
     RepositorySnapshot,
     RunStatus,
     SnapshotKind,
+    SymbolKind,
 )
 from app.providers import github_provider
 from app.providers.embedding_provider import get_embedding_provider
@@ -50,7 +59,7 @@ from app.providers.qdrant_provider import build_code_points, get_code_index
 
 logger = logging.getLogger(__name__)
 
-INDEX_VERSION = "code-index-v1"
+INDEX_VERSION = "code-index-v2"
 MAX_FILE_BYTES = 200_000
 MAX_FILES = 500
 EMBED_BATCH_SIZE = 32
@@ -105,6 +114,54 @@ def detect_language(path: str) -> str | None:
 
 def _sha256_hex(text: str) -> str:
     return hashlib.sha256(text.encode("utf-8")).hexdigest()
+
+
+def _to_symbol_kind(kind: str) -> SymbolKind:
+    """Map an extractor kind string onto the SymbolKind enum (fallback: OTHER)."""
+    try:
+        return SymbolKind(kind)
+    except ValueError:
+        return SymbolKind.OTHER
+
+
+def _sync_file_symbols(
+    db: Session,
+    record: RepositoryFile,
+    *,
+    project_id: str,
+    path: str,
+    content: str,
+) -> list[SymbolSpan]:
+    """Extract and persist CodeSymbol rows for one file. Never raises.
+
+    Existing rows for the file are replaced so re-syncs stay idempotent.
+    Returns the extracted spans for chunking.
+    """
+    try:
+        spans = extract_symbols(path, content, language=record.language)
+    except Exception as exc:  # noqa: BLE001 — extraction must degrade, not crash sync
+        logger.warning("Symbol extraction failed (path=%s): %s", path, exc)
+        return []
+    try:
+        # Savepoint: a symbol-write failure rolls back only the symbols,
+        # never the file record or chunks in the outer transaction.
+        with db.begin_nested():
+            db.execute(delete(CodeSymbol).where(CodeSymbol.file_id == record.id))
+            for span in spans:
+                db.add(CodeSymbol(
+                    file_id=record.id,
+                    project_id=project_id,
+                    kind=_to_symbol_kind(span.kind),
+                    name=span.name[:512],
+                    qualified_name=span.qualified_name,
+                    signature=(span.signature[:2000] if span.signature else None),
+                    start_line=span.start_line,
+                    end_line=span.end_line,
+                    symbol_hash=span.symbol_hash,
+                ))
+    except Exception as exc:  # noqa: BLE001 — symbol persistence is best-effort
+        logger.warning("Symbol persistence failed (path=%s): %s", path, exc)
+    return spans
 
 
 def _ensure_connection(db: Session, project_id: str, user_id: str) -> RepositoryConnection:
@@ -418,6 +475,7 @@ def sync_repository_snapshot(
     skipped: list[str] = []
     files_indexed = 0
     chunks_created = 0
+    symbols_extracted = 0
     pending_texts: list[str] = []
     pending_meta: list[tuple[RepositoryFile, int, int, int, str]] = []
     created_chunks: list[tuple[CodeChunk, str]] = []
@@ -448,7 +506,16 @@ def sync_repository_snapshot(
             )
         ).scalar_one_or_none()
         if record is not None and record.content_hash == content_hash:
-            continue  # Unchanged since last sync — chunks already stored.
+            # Unchanged since last sync — chunks already stored. Backfill
+            # symbols when missing (e.g. files indexed by code-index-v1).
+            existing_symbols = db.execute(
+                select(CodeSymbol.file_id).where(CodeSymbol.file_id == record.id).limit(1)
+            ).first()
+            if existing_symbols is None:
+                symbols_extracted += len(_sync_file_symbols(
+                    db, record, project_id=project_id, path=path, content=content,
+                ))
+            continue
         if record is None:
             record = RepositoryFile(
                 snapshot_id=snapshot.id,
@@ -472,7 +539,9 @@ def sync_repository_snapshot(
             record.line_count = line_count
             db.flush()
 
-        pieces = chunk_code_lines(content)
+        spans = _sync_file_symbols(db, record, project_id=project_id, path=path, content=content)
+        symbols_extracted += len(spans)
+        pieces = chunk_code_with_symbols(content, spans) if spans else chunk_code_lines(content)
         if not pieces:
             skipped.append(f"{path} (empty)")
             continue
@@ -515,6 +584,7 @@ def sync_repository_snapshot(
     index_run.stats = {
         "filesIndexed": files_indexed,
         "chunksCreated": chunks_created,
+        "symbolsExtracted": symbols_extracted,
         "skipped": len(skipped),
     }
     db.commit()
@@ -549,8 +619,9 @@ def retrieve_code_context(
     top_k: int = 3,
     max_chars: int = 3000,
 ) -> list[CodeContextItem]:
-    """Hybrid retrieval: Qdrant vectors first, keyword fallback otherwise.
+    """Hybrid retrieval: symbols first, Qdrant vectors, keyword fallback otherwise.
 
+    Exact symbol-name matches (deterministic, free) outrank semantic vectors;
     Postgres is never queried by vector (no pgvector distance operators):
     Neon runs the relational schema only. Never raises — verification works
     diff-only when the index is empty or Qdrant is unreachable.
@@ -559,18 +630,104 @@ def retrieve_code_context(
     if not query:
         return []
     try:
+        symbol_items = _retrieve_code_context_symbols(
+            db, project_id=project_id, query=query, top_k=top_k
+        )
+    except Exception as exc:  # noqa: BLE001
+        logger.warning("Symbol retrieval failed, continuing to vectors: %s", exc)
+        symbol_items = []
+    try:
         qdrant_items = _retrieve_code_context_qdrant(
             project_id=project_id, query=query, top_k=top_k
         )
-        if qdrant_items:
-            return qdrant_items
+        if qdrant_items or symbol_items:
+            return _merge_context_items(symbol_items, qdrant_items, top_k=top_k)
     except Exception as exc:  # noqa: BLE001
         logger.warning("Qdrant retrieval failed, falling back to keyword: %s", exc)
+        if symbol_items:
+            return symbol_items[:top_k]
     try:
-        return _retrieve_code_context_keyword(db, project_id=project_id, query=query, top_k=top_k)
+        keyword_items = _retrieve_code_context_keyword(
+            db, project_id=project_id, query=query, top_k=top_k
+        )
+        if symbol_items:
+            return _merge_context_items(symbol_items, keyword_items, top_k=top_k)
+        return keyword_items
     except Exception as exc:  # noqa: BLE001
         logger.warning("Code context retrieval failed, continuing diff-only: %s", exc)
+        return symbol_items[:top_k]
+
+
+def _merge_context_items(
+    first: list[CodeContextItem], second: list[CodeContextItem], *, top_k: int
+) -> list[CodeContextItem]:
+    """Merge two ranked lists, keeping first-list order; dedupe by chunk span."""
+    seen: set[tuple[str, int, int]] = set()
+    merged: list[CodeContextItem] = []
+    for item in (*first, *second):
+        key = (item.path, item.start_line, item.end_line)
+        if key not in seen:
+            seen.add(key)
+            merged.append(item)
+        if len(merged) >= top_k:
+            break
+    return merged
+
+
+def _retrieve_code_context_symbols(
+    db: Session, *, project_id: str, query: str, top_k: int
+) -> list[CodeContextItem]:
+    """Exact symbol-name matches mapped onto overlapping code chunks.
+
+    Deterministic and free: query tokens matching a symbol's name or
+    qualified name boost the chunks spanning that symbol's lines.
+    Empty list when no symbols match — never raises.
+    """
+    tokens = {t.strip("()[]{},:;\"'").lower() for t in query.lower().split()}
+    tokens = {t for t in tokens if len(t) > 2}
+    if not tokens:
         return []
+    symbols = db.execute(
+        select(CodeSymbol, RepositoryFile.path)
+        .join(RepositoryFile, RepositoryFile.id == CodeSymbol.file_id)
+        .where(CodeSymbol.project_id == project_id)
+        .limit(1000)
+    ).all()
+    if not symbols:
+        return []
+    matched: list[tuple[float, CodeSymbol, str]] = []
+    for symbol, path in symbols:
+        names = {symbol.name.lower(), symbol.qualified_name.lower()}
+        dotted = {part for qn in names for part in qn.split(".")}
+        hits = len(tokens & (names | dotted))
+        if hits:
+            matched.append((hits / len(tokens), symbol, path))
+    if not matched:
+        return []
+    matched.sort(key=lambda item: item[0], reverse=True)
+
+    items: list[CodeContextItem] = []
+    for score, symbol, path in matched[:top_k]:
+        chunk = db.execute(
+            select(CodeChunk)
+            .where(
+                CodeChunk.project_id == project_id,
+                CodeChunk.start_line <= symbol.end_line,
+                CodeChunk.end_line >= symbol.start_line,
+            )
+            .join(RepositoryFile, RepositoryFile.id == CodeChunk.file_id)
+            .where(RepositoryFile.path == path)
+            .order_by(CodeChunk.ordinal)
+            .limit(1)
+        ).scalar_one_or_none()
+        if chunk is None:
+            continue
+        # Symbol hits outrank vector/keyword scores (which normalize to ≤1).
+        items.append(CodeContextItem(
+            path=path, start_line=chunk.start_line, end_line=chunk.end_line,
+            content=chunk.content, score=1.0 + score,
+        ))
+    return items
 
 
 def _retrieve_code_context_qdrant(
